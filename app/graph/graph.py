@@ -101,7 +101,7 @@ def _build_graph() -> StateGraph:
         "reflection",
         route_after_reflection,
         {
-            "guideline_rag": "guideline_rag",      # retry loop
+            "planner": "planner",                  # retry loop via planner
             "clinical_summary": "clinical_summary", # proceed
         },
     )

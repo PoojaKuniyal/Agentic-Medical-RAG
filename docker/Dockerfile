@@ -15,7 +15,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source
 COPY app/ ./app/
 COPY frontend/ ./frontend/
-COPY evaluation/ ./evaluation/
 COPY knowledge/ ./knowledge/
 
 # Create the Chroma persistence directory

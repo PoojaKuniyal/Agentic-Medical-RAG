@@ -6,7 +6,7 @@ Production-inspired Multi-Agent Clinical Evidence Synthesis Platform built with 
 
 MedEvidence AI is an intelligent medical AI assistant designed to help clinicians and healthcare professionals quickly synthesize evidence-based clinical insights. While pre-configured for **Type 2 Diabetes** management, the underlying architecture is designed to be extensible to other clinical domains. It can be easily extended to any clinical domain (e.g., Cardiology, Oncology, Neurology) simply by adding guideline PDFs to the knowledge base. 
 
-> Evidence synthesis system for healthcare professionals, designed to retrieve, compare, and summarize clinical evidence from guidelines and PubMed.
+> A prototype evidence synthesis system that helps healthcare professionals retrieve, compare, and summarize clinical evidence from guidelines and PubMed.
 
 ---
 
@@ -34,32 +34,32 @@ The core workflow is orchestrated using **LangGraph** as a cyclic `StateGraph`. 
                     [Memory Node (load)] ← Redis
                              │
                              ▼
-                    [Planner Agent] (intent classification + routing)
-                             │
-               ┌──────────────┴──────────────┐ (parallel fan-out)
-               ▼                             ▼
-    [Clinical Guideline RAG]          [PubMed Node]
-            (Chroma)                   (NCBI Entrez)
-               │                             │
-               └──────────────┬──────────────┘
-                             │
-                             ▼
-                [Evidence Ranking Node] (Deterministic classification & metrics)
-                             │
-                             ▼
-                [Clinical Reasoning Agent]
-                             │
-                             ▼
-                   [Reflection Agent] ──retry──► Loop back (max 2)
-                             │
-                             ▼
-               [Clinical Summary Agent]
+                    [Planner Agent] ◄─────────────────────────────────────┐
+                             │                                            │
+               ┌──────────────┴──────────────┐ (parallel fan-out)         │
+               ▼                             ▼                            │
+    [Clinical Guideline RAG]          [PubMed Node]                       │
+            (Chroma)                   (NCBI Entrez)                      │
+               │                             │                            │
+               └──────────────┬──────────────┘                            │
+                             │                                            │
+                             ▼                                            │
+                 [Evidence Ranking Node] (Deterministic metrics)          │
+                             │                                            │
+                             ▼                                            │
+                 [Clinical Reasoning Agent]                               │
+                             │                                            │
+                             ▼                                            │
+                    [Reflection Agent] ──retry (max 2) ───────────────────┘
                              │
                              ▼
-                    [Memory Node (save)] → Redis
+                [Clinical Summary Agent]
                              │
                              ▼
-                  Clean Response & Citations
+                     [Memory Node (save)] → Redis
+                             │
+                             ▼
+                   Clean Response & Citations
 ```
 
 ---
@@ -75,7 +75,7 @@ The core workflow is orchestrated using **LangGraph** as a cyclic `StateGraph`. 
 | **Reflection Agent** | LLM Agent | Evaluates evidence sufficiency. If evidence is sparse or conflicting, triggers a retrieval retry cycle (maximum two iterations). |
 | **Clinical Summary Agent** | LLM Agent | Generates the final clean natural-language response, structured citations (page numbers, PMIDs, DOIs), and follow-up questions. |
 
-### ⚡ Deterministic Nodes & Tool FHandlers (`app/nodes/`)
+### ⚡ Deterministic Nodes & Tool Handlers (`app/nodes/`)
 | Node / Module | Type | Responsibility |
 |---|---|---|
 | **Memory Node** | Tool / Redis | Loads and stores conversation history, tracked clinical topics, and evidence references using Redis without LLM overhead. |

@@ -55,13 +55,14 @@ def route_after_planner(state: ClinicalState) -> list[str]:
 
 def route_after_reflection(
     state: ClinicalState,
-) -> Literal["guideline_rag", "clinical_summary"]:
+) -> Literal["planner", "clinical_summary"]:
     """
-    If reflection agent requests a retry -> loop back to retrieval.
+    If reflection agent requests a retry -> loop back to planner.
     Otherwise -> proceed to clinical summary.
     """
     if state.get("reflection_needed", False):
-        logger.debug("[Edge] ReflectionAgent -> guideline_rag (retry retrieval)")
-        return "guideline_rag"
+        logger.debug("[Edge] ReflectionAgent -> planner (retry retrieval)")
+        return "planner"
     logger.debug("[Edge] ReflectionAgent -> clinical_summary")
     return "clinical_summary"
+
