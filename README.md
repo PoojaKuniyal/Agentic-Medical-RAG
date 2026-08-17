@@ -257,5 +257,5 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### Future
 
-* RAG retrieval quality optimization and improved document chunking
 * Latency Reduction
+* Cloud Deployment

@@ -1,0 +1,62 @@
+
+Re-ingest your PDFs into Chroma using POST /ingest?force=true or via the 
+UI "Sync Knowledge" button to index the documents with the new continuous 
+semantic chunks
+
+Docker command
+docker compose -f docker/docker-compose.yml up --build 
+
+══════════════════════════════════════════════════════
+Environment Variables
+════════════════════════════════════════════════════
+
+# ── LLM Provider ────────────────────────────────────────────────────
+# Supported: google_genai | openai | anthropic | groq
+LLM_PROVIDER=groq
+LLM_MODEL=llama-3.3-70b-versatile
+GROQ_API_KEY=YOUR_API_KEY
+
+# Google AI Studio API key (used when LLM_PROVIDER=google_genai)
+#GOOGLE_API_KEY=YOUR_API_KEY
+
+OPENAI_API_KEY= YOUR_API_KEY
+
+# ── LangSmith Observability ──────────────────────────────────────────────────
+LANGSMITH_API_KEY=YOUR_API_KEY
+LANGSMITH_PROJECT=MediAI
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+
+# ── Redis ────────────────────────────────────────────────────────────────────
+REDIS_URL=redis://localhost:6379
+REDIS_SESSION_TTL=3600      # seconds — conversation TTL
+
+# ── Chroma Vector Store ──────────────────────────────────────────────────────
+CHROMA_MODE=http             # http | local
+CHROMA_HOST=localhost
+CHROMA_PORT=8001
+CHROMA_PERSIST_DIR=./chroma_db   # used when CHROMA_MODE=local
+
+# ── RAG Ingestion ────────────────────────────────────────────────────────────
+KNOWLEDGE_DIR=./knowledge
+CHUNK_SIZE=1000
+CHUNK_OVERLAP=150
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+
+# Optional Hugging Face Hub token to eliminate rate-limit warnings when downloading models
+# HF_TOKEN=YOUR_API_KEY
+
+
+# ── PubMed / NCBI Entrez ─────────────────────────────────────────────────────
+# NCBI requires an email for API usage identification
+PUBMED_EMAIL=YOUR_EMAIL_ID
+PUBMED_MAX_RESULTS=5
+PUBMED_TOOL=entrez         # entrez | mcp — swap without changing agent code
+
+# ── Reflection ───────────────────────────────────────────────────────────────
+MAX_REFLECTION_ITERATIONS=2
+
+# ── Testing ──────────────────────────────────────────────────────────────────
+# Set to true to run integration tests against live APIs
+INTEGRATION_TESTS=false
+
