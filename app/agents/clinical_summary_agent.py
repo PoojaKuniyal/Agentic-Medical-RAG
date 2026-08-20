@@ -155,15 +155,15 @@ def run_clinical_summary(state: ClinicalState) -> dict:
 
     response = llm.invoke(messages)
     raw = response.content.strip()
-
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-        raw = raw.strip()
+    import re
+    # 1. Remove <think> reasoning blocks
+    raw_cleaned = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE).strip()
+    # 2. Extract JSON object {...}
+    json_match = re.search(r"\{.*\}", raw_cleaned, re.DOTALL)
+    json_str = json_match.group(0) if json_match else raw_cleaned
 
     try:
-        data = json.loads(raw, strict=False)
+        data = json.loads(json_str, strict=False)
         final_response = _build_response(data, evidence_support, prog_citations, prog_sources)
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         logger.warning(
@@ -179,17 +179,23 @@ def run_clinical_summary(state: ClinicalState) -> dict:
 
 
 def _clean_summary_text(text: str) -> str:
-    """Clean summary text by stripping inline REF tags and internal debug metadata strings to ensure a clean natural language output."""
+    """Clean summary text by stripping <think> blocks, inline REF tags, and internal debug metadata strings."""
     if not text:
         return ""
     import re
-    cleaned = text.replace("**", "").replace("__", "")
-    # Remove inline [REF-xxx] tags
+    # 1. Remove complete <think>...</think> blocks
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    # 2. Remove standalone <think> or </think> tags
+    cleaned = re.sub(r"</?think>", "", cleaned, flags=re.IGNORECASE)
+    cleaned = cleaned.replace("**", "").replace("__", "")
+    # 3. Remove inline [REF-xxx] tags
     cleaned = re.sub(r"\[REF-\d+\]", "", cleaned, flags=re.IGNORECASE)
-    # Remove debug metadata strings like (source: rank 1, PMID: unavailable; PDF reference: ...)
+    # 4. Remove debug metadata strings
     cleaned = re.sub(r"\s*\(\s*(source|rank|PMID|PDF reference|collection):.*?\)", "", cleaned, flags=re.IGNORECASE)
-    # Remove standalone debug labels
     cleaned = re.sub(r"(?i)\b(PMID:\s*unavailable|PDF reference:\s*[\w.-]+|source:\s*rank\s*\d+)\b", "", cleaned)
+    # 5. Remove "Here's a thinking process:" lines
+    cleaned = re.sub(r"(?i)^.*here'?s a thinking process.*$", "", cleaned, flags=re.MULTILINE)
+    
     # Clean multiple spaces and return
     lines = [re.sub(r"\s+", " ", l).strip() for l in cleaned.split("\n")]
     return "\n".join([l for l in lines if l])

@@ -47,7 +47,7 @@ class ResilientChatModel(BaseChatModel):
     def with_structured_output(self, schema: Any, **kwargs: Any) -> Any:
         """Delegate structured output binding directly to the primary LLM provider."""
         if "method" not in kwargs and self.provider_name in ("groq", "ollama", "open_source"):
-            kwargs["method"] = "function_calling"
+            kwargs["method"] = "json_mode"
         return self.primary_llm.with_structured_output(schema, **kwargs)
 
 
@@ -73,6 +73,12 @@ class ResilientChatModel(BaseChatModel):
                 response_message = self.primary_llm.invoke(
                     messages, stop=stop, config=config, **kwargs
                 )
+                if isinstance(response_message.content, str) and "<think>" in response_message.content.lower(): # Clean <think> tags at the LLM Factory level
+                    import re
+                    response_message.content = re.sub(
+                        r"<think>.*?</think>", "", response_message.content, flags=re.DOTALL | re.IGNORECASE
+                    ).strip()
+
                 return ChatResult(
                     generations=[ChatGeneration(message=response_message)]
                 )
@@ -83,8 +89,11 @@ class ResilientChatModel(BaseChatModel):
                     for err in [
                     # Rate limiting / temporary throttling
                     "429",
+                    "413",
                     "rate_limit",
+                    "ratelimitexceeded",
                     "resource_exhausted",
+                    "tpm",
 
                     # Temporary server errors
                     "500",

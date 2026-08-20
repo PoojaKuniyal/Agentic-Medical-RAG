@@ -124,17 +124,20 @@ Persists session context across multi-turn clinical conversations, allowing clin
 
 ---
 
-## ⚡ Performance Optimization: Groq vs. Ollama
+## ⚡ Performance Optimization & LLM Provider Setup
 
-While local models via Ollama are supported for offline privacy, **inference latency is dramatically better with Groq** (`llama-3.3-70b-versatile`). It significantly reduced LLM inference latency compared with the local Ollama setup, making the multi-agent system much more responsive.
+While local models via Ollama are supported for offline privacy, **inference latency is dramatically better with Groq** using modern open-weights models such as `qwen/qwen3.6-27b`. It significantly reduces LLM inference latency compared with a local setup, making the multi-agent system much more responsive.
 
 To use Groq, configure your `.env`:
 
 ```env
 LLM_PROVIDER=groq
-LLM_MODEL=llama-3.3-70b-versatile
+LLM_MODEL=qwen/qwen3.6-27b
 GROQ_API_KEY=your_groq_api_key
 ```
+
+> **Note on Model Availability & Deprecations:**  
+> Cloud providers (like Groq, OpenAI, or Google GenAI) periodically deprecate or rename model endpoints (e.g. `llama-3.3-70b-versatile` or preview checkpoints). If you encounter a `404 model_not_found` error, check your provider's model catalog (e.g., [Groq Models Console](https://console.groq.com/docs/models)) and update `LLM_MODEL` in your `.env` file to an active supported model.
 
 ---
 
@@ -252,6 +255,13 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ### Blocked by Guardrail
 
 ![Blocked by Guardrail](images/Guardrial.png)
+
+*Demonstration of Guardrail discrimination: The system allows clinical scenario requests for published guidelines while blocking direct requests for personalized medical advice.*
+
+---
+
+> **Clinical Safety Design (Fail-Closed Pattern):**  
+> The Guardrail Agent implements a strict *Fail-Closed* architecture. It distinguishes between evidence-based guideline queries (allowed) and personalized patient treatment requests (blocked). If a network glitch or evaluation error occurs during safety checks, the query is safely blocked rather than bypassing safety evaluation. Unchecked queries never bypass safety gates which is compliant with medical safety.
 
 ---
 

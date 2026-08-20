@@ -38,10 +38,14 @@ def run_guardrail(state: ClinicalState) -> dict:
 
     try:
         llm = get_llm(temperature=0.0)
-        structured_llm = llm.with_structured_output(GuardrailDecision)
+        structured_llm = llm.with_structured_output(GuardrailDecision, method="json_mode")
 
         messages = [
-            SystemMessage(content=GUARDRAIL_SYSTEM_PROMPT),
+            SystemMessage(
+                content=GUARDRAIL_SYSTEM_PROMPT
+                + "\n\nRespond strictly with JSON matching this schema:\n"
+                '{"is_safe": bool, "reason": str|null, "message": str|null}'
+            ),
             HumanMessage(content=f"Query to evaluate:\n\n{query}"),
         ]
 

@@ -6,6 +6,12 @@ semantic chunks
 Docker command
 docker compose -f docker/docker-compose.yml up --build 
 
+If using docker - Restart your Docker container to reload the code changes:
+docker compose -f docker/docker-compose.yml down
+docker compose -f docker/docker-compose.yml up --build
+or
+docker compose -f docker/docker-compose.yml restart
+
 ══════════════════════════════════════════════════════
 Environment Variables
 ════════════════════════════════════════════════════
@@ -13,7 +19,7 @@ Environment Variables
 # ── LLM Provider ────────────────────────────────────────────────────
 # Supported: google_genai | openai | anthropic | groq
 LLM_PROVIDER=groq
-LLM_MODEL=llama-3.3-70b-versatile
+LLM_MODEL=qwen/qwen3.6-27b
 GROQ_API_KEY=YOUR_API_KEY
 
 # Google AI Studio API key (used when LLM_PROVIDER=google_genai)

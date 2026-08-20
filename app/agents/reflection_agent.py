@@ -65,15 +65,15 @@ def run_reflection(state: ClinicalState) -> dict:
 
     response = llm.invoke(messages)
     raw = response.content.strip()
-
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-        raw = raw.strip()
+    import re
+    # 1. Remove <think> reasoning blocks
+    raw_cleaned = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE).strip()
+    # 2. Extract JSON object {...}
+    json_match = re.search(r"\{.*\}", raw_cleaned, re.DOTALL)
+    json_str = json_match.group(0) if json_match else raw_cleaned
 
     try:
-        data = json.loads(raw)
+        data = json.loads(json_str, strict=False)
         decision = data.get("decision", "CONTINUE").upper()
         reason = data.get("reason", "")
         issues = data.get("issues_detected", [])

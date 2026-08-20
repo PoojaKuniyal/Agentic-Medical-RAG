@@ -97,6 +97,9 @@ class PlannerOutput(BaseModel):
     reasoning: str
 
 
+from pydantic import BaseModel, Field, field_validator
+
+
 class GuardrailDecision(BaseModel):
     """Structured decision output from the Guardrail Agent."""
 
@@ -111,6 +114,13 @@ class GuardrailDecision(BaseModel):
         default=None,
         description="User-facing explanation if unsafe.",
     )
+
+    @field_validator("is_safe", mode="before")
+    @classmethod
+    def parse_is_safe(cls, v: Any) -> bool:
+        if isinstance(v, str):
+            return v.strip().lower() in ("true", "1", "yes")
+        return bool(v)
 
 
 class SafetyResponse(BaseModel):

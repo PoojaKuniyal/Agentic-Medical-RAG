@@ -28,6 +28,8 @@ from app.rag.embedder import embed_query, embed_texts
 
 logger = logging.getLogger(__name__)
 
+#  Similarity Threshold Filter - to throw away non-matching chunks. 
+MIN_SCORE_THRESHOLD = 0.50 # Minimum score to be considered relevant
 
 # ── Client factory ───────────────────────────────────────────────────────────
 
@@ -118,6 +120,7 @@ def similarity_search(
     collection_name: str,
     query: str,
     n_results: int = 5,
+    min_score:float = MIN_SCORE_THRESHOLD, # filters out low relevance noise
 ) -> list[dict]:
     """
     Retrieve the top-k most similar chunks for a query.
@@ -145,16 +148,17 @@ def similarity_search(
     for chunk_id, doc, meta, dist in zip(ids, documents, metadatas, distances):
         # Chroma cosine distance → similarity score (1 - distance)
         score = max(0.0, 1.0 - dist)
-        chunks.append(
-            {
-                "chunk_id": chunk_id,
-                "text": doc,
-                "source_pdf": meta.get("source_pdf", ""),
-                "page_number": meta.get("page_number"),
-                "collection": meta.get("collection", collection_name),
-                "score": round(score, 4),
-            }
-        )
+        if score >= min_score:  # Only accept reasonably matching chunks
+            chunks.append(
+                {
+                    "chunk_id": chunk_id,
+                    "text": doc,
+                    "source_pdf": meta.get("source_pdf", ""),
+                    "page_number": meta.get("page_number"),
+                    "collection": meta.get("collection", collection_name),
+                    "score": round(score, 4),
+                }
+            )
 
     return chunks
 
