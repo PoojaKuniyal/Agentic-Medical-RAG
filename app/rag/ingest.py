@@ -41,14 +41,7 @@ logger = logging.getLogger(__name__)
 async def run_ingestion(force: bool = False) -> dict:
     """
     Run the incremental (or forced) ingestion pipeline.
-
-    Parameters
-    ----------
     force : If True, delete all Chroma collections and rebuild from scratch.
-
-    Returns
-    -------
-    dict with keys: indexed (int), skipped (int), collections (list[str])
     """
     settings = get_settings()
     knowledge_dir = Path(settings.knowledge_dir).resolve()
@@ -80,7 +73,7 @@ async def run_ingestion(force: bool = False) -> dict:
         collection_name = collection_map.get(subdir, "future_documents")
 
         logger.info(
-            "Ingesting: %s (modified=%s) → collection=%s",
+            "Ingesting: %s (modified=%s) -> collection=%s",
             pdf_path.name,
             is_modified,
             collection_name,
@@ -117,3 +110,77 @@ async def run_ingestion(force: bool = False) -> dict:
         "skipped": len(unchanged),
         "collections": sorted(collections_touched),
     }
+
+
+async def ingest_uploaded_pdf(
+    file_bytes: bytes,
+    filename: str,
+    target_collection: str = "clinical_guidelines",
+) -> dict:
+    """
+    Save an uploaded PDF into the corresponding knowledge directory subfolder
+    and ingest its chunks into the specified Chroma collection.
+    """
+    settings = get_settings()
+    knowledge_dir = Path(settings.knowledge_dir).resolve()
+
+    valid_collections = list(settings.chroma_collections.values())
+    if target_collection not in valid_collections:
+        target_collection = "future_documents"
+
+    # Destination directory: knowledge_dir / target_collection
+    target_dir = knowledge_dir / target_collection
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_filename = Path(filename).name
+    if not safe_filename.lower().endswith(".pdf"):
+        raise ValueError("Only PDF files are supported.")
+
+    dest_path = target_dir / safe_filename
+    dest_path.write_bytes(file_bytes)
+
+    manifest = load_manifest(knowledge_dir)
+    relative_key = dest_path.relative_to(knowledge_dir).as_posix()
+    is_modified = relative_key in manifest
+
+    if is_modified:
+        delete_chunks_by_source_pdf(target_collection, dest_path.name)
+
+    pages = load_pdf(dest_path, knowledge_dir)
+    chunks = chunk_pages(pages)
+    count = upsert_chunks(target_collection, chunks)
+
+    manifest[relative_key] = compute_hash(dest_path)
+    save_manifest(knowledge_dir, manifest)
+
+    logger.info(
+        "Uploaded and ingested '%s' into '%s' (%d chunks, %d pages)",
+        safe_filename,
+        target_collection,
+        count,
+        len(pages),
+    )
+
+    return {
+        "filename": safe_filename,
+        "collection": target_collection,
+        "chunks_indexed": count,
+        "pages_processed": len(pages),
+        "status": "ok",
+    }
+
+
+if __name__ == "__main__":
+    import asyncio
+    import sys
+
+    logging.basicConfig(level=logging.INFO)
+    is_force = "--force" in sys.argv
+    logger.info("Starting ingestion script (force=%s)...", is_force)
+    result = asyncio.run(run_ingestion(force=is_force))
+    print(f"\n--- INGESTION COMPLETE ---")
+    print(f"Indexed Chunks : {result.get('indexed', 0)}")
+    print(f"Skipped PDFs   : {result.get('skipped', 0)}")
+    print(f"Collections    : {result.get('collections', [])}\n")
+
+

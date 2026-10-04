@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MediAI — Clinical Evidence Synthesis Platform</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 
 
@@ -19,7 +22,7 @@
       <div class="brand">
         <div class="brand-logo">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2v20M2 12h20M12 6a6 6 0 0 0-6 6v0a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v0a6 6 0 0 0-6-6z"/>
+            <path d="M12 2v20M2 12h20M12 6a6 6 0 0 0-6 6v0a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v0a6 6 0 0 0-6-6z" />
           </svg>
         </div>
         <div class="brand-text">
@@ -30,7 +33,7 @@
 
       <button id="new-chat-btn" class="btn btn-primary btn-block">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 5v14M5 12h14"/>
+          <path d="M12 5v14M5 12h14" />
         </svg>
         New Clinical Query
       </button>
@@ -67,7 +70,7 @@
         <div class="top-bar-actions">
           <button id="reingest-btn" class="btn btn-secondary btn-sm" title="Trigger Knowledge Base Ingestion">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
             </svg>
             Sync Knowledge
           </button>
@@ -79,16 +82,21 @@
         <div class="welcome-card">
           <div class="welcome-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-              <path d="M12 5v14M5 12h14"/>
+              <path
+                d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+              <path d="M12 5v14M5 12h14" />
             </svg>
           </div>
           <h3>Clinical Evidence Assistant</h3>
-          <p>Ask evidence-based clinical questions about guidelines, treatment algorithms, and biomedical literature. Answers are synthesized directly from verified sources.</p>
+          <p>Ask evidence-based clinical questions about guidelines, treatment algorithms, and biomedical literature.
+            Answers are synthesized directly from verified sources.</p>
           <div class="sample-queries">
-            <button class="sample-query-btn">What is the recommended first-line treatment for Type 2 Diabetes according to NICE guidelines?</button>
-            <button class="sample-query-btn">How do SGLT2 inhibitors compare with GLP-1 receptor agonists in reducing cardiovascular risk?</button>
-            <button class="sample-query-btn">What are the target HbA1c thresholds for elderly patients with chronic kidney disease?</button>
+            <button class="sample-query-btn">Which adults with type 2 diabetes should be offered continuous glucose
+              monitoring (CGM) according to Quality Statement 3?</button>
+            <button class="sample-query-btn">What are the three main benefits of SGLT-2 inhibitors for adults with type
+              2 diabetes?</button>
+            <button class="sample-query-btn">What conditions must be met for finerenone to be recommended for adults
+              with stage 3 or 4 chronic kidney disease associated with type 2 diabetes?</button>
           </div>
         </div>
       </div>
@@ -127,15 +135,12 @@
       <!-- Input Bar -->
       <div class="input-container">
         <form id="chat-form">
-          <textarea 
-            id="user-input" 
+          <textarea id="user-input"
             placeholder="Type your clinical evidence inquiry here... (Press Shift+Enter for new line, Enter to submit)"
-            rows="2"
-            required
-          ></textarea>
+            rows="2" required></textarea>
           <button type="submit" id="send-btn" class="btn btn-primary">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
             </svg>
             <span>Synthesize</span>
           </button>
@@ -175,19 +180,11 @@
             <span class="empty-state-text">No citations generated yet.</span>
           </div>
         </div>
-
-        <!-- Evidence Sources -->
-        <div class="inspector-card">
-          <div class="card-label">Retrieved Evidence Sources</div>
-          <div id="sources-list" class="sources-list">
-            <span class="empty-state-text">No sources retrieved yet.</span>
-          </div>
-        </div>
       </div>
     </aside>
   </div>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=6"></script>
 </body>
 
 

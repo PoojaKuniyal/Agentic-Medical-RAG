@@ -27,7 +27,12 @@ MAX_HISTORY_TURNS = 10 # Only last 10 turns are stored in Redis to prevent memor
 def get_redis() -> redis.Redis:
     """Return a cached Redis client instance."""
     settings = get_settings()
-    client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+    client = redis.Redis.from_url(
+        settings.redis_url,
+        decode_responses=True,
+        socket_connect_timeout=0.5,
+        socket_timeout=0.5,
+    )
     logger.info("Redis client connected to %s", settings.redis_url)
     return client
 

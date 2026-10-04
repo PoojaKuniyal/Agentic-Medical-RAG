@@ -1,13 +1,7 @@
 """
-NCBI Entrez-based PubMed search implementation.
+PubMed search tool implementation using NCBI Entrez REST API.
 
-Uses Biopython's Entrez module to:
-  1. Search PubMed with esearch (returns PMIDs)
-  2. Fetch article details with efetch (returns XML records)
-  3. Parse and return structured PubMedArticle objects
-
-NCBI requires an email address for API identification.
-Configure via PUBMED_EMAIL in .env.
+Uses Biopython's Entrez module to Search PubMed & fetch article details.
 """
 
 from __future__ import annotations
@@ -19,13 +13,12 @@ from typing import Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import get_settings
-from app.graph.state import PubMedArticle
-from app.tools.base import AbstractPubMedTool
+from app.graph.schemas import PubMedArticle
 
 logger = logging.getLogger(__name__)
 
 
-class EntrezPubMedTool(AbstractPubMedTool):
+class EntrezPubMedTool:
     """PubMed search via NCBI Entrez REST API (Biopython)."""
 
     def __init__(self) -> None:
@@ -49,13 +42,6 @@ class EntrezPubMedTool(AbstractPubMedTool):
     def search(self, query: str, max_results: Optional[int] = None) -> list[PubMedArticle]:
         """
         Search PubMed and return structured article records.
-
-        Parameters
-        ----------
-        query : str
-            Biomedical search query (supports MeSH terms and boolean operators).
-        max_results : int | None
-            Override the default PUBMED_MAX_RESULTS setting.
         """
         from Bio import Entrez
 
@@ -87,7 +73,12 @@ class EntrezPubMedTool(AbstractPubMedTool):
         return articles
 
 
-# ── XML parsing ──────────────────────────────────────────────────────────────
+def get_pubmed_tool() -> EntrezPubMedTool:
+    """Factory function that returns the EntrezPubMedTool instance."""
+    return EntrezPubMedTool()
+
+
+# XML parsing 
 
 
 def _parse_pubmed_xml(xml_data: bytes) -> list[PubMedArticle]:

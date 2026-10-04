@@ -1,13 +1,6 @@
 """
 PDF loader using PyMuPDF (fitz).
-
-Take a PDF -> extract its text page by page -> attach metadata -> return structured Python dictionaries
-
-Returns a list of raw page dictionaries, each carrying:
-  - page_number  : 1-indexed
-  - text         : extracted page text
-  - source_pdf   : filename of the source document
-  - collection   : Chroma collection derived from the knowledge sub-directory
+Take a PDF ->  extract its text page by page -> attach metadata -> return structured Python dictionaries
 """
 
 from __future__ import annotations
@@ -49,9 +42,6 @@ def clean_page_text(text: str) -> str:
       - "Page X of Y" or standalone "Page X"
       - Copyright / legal notices (e.g. "© NICE 2026. All rights reserved.")
       - Repeated terms & conditions URLs
-
-    Clinical headers, section titles, definitions, recommendations, tables,
-    and narrative text are preserved intact.
     """
     if not text:
         return ""
@@ -86,8 +76,8 @@ def _collection_from_path(pdf_path: Path, knowledge_dir: Path) -> str:
     Look at where the PDF is located and determine which Chroma collection it belongs to.
 
     Example:
-        knowledge/clinical_guidelines/...pdf  →  "clinical_guidelines"
-        knowledge/consensus_reports/....pdf     →  "consensus_reports"
+        knowledge/clinical_guidelines/...pdf  -> "clinical_guidelines"
+        knowledge/consensus_reports/....pdf  -> "consensus_reports"
     """
     try:
         relative = pdf_path.relative_to(knowledge_dir)
@@ -102,15 +92,7 @@ def _collection_from_path(pdf_path: Path, knowledge_dir: Path) -> str:
 def load_pdf(pdf_path: Path, knowledge_dir: Path) -> list[dict]:
     """
     Load a PDF file and return a list of cleaned page-level records. 
-
-    Parameters
-    ----------
-    pdf_path : Absolute path to the PDF file.
-    knowledge_dir : Root knowledge directory (used to derive the collection name).
-
-    Returns
-    -------
-    list of page dicts with keys: page_number, text, source_pdf, collection. One dictionary represents one page.
+    Returns list of page dicts with keys: page_number, text, source_pdf, collection. One dictionary represents one page.
     Empty pages (or pages with only stripped boilerplate) are skipped.
     Physical 1-indexed page numbers are preserved as metadata.
     """

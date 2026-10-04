@@ -33,7 +33,6 @@ const inspectorStatus = document.getElementById('inspector-status');
 const evidenceSupportDisplay = document.getElementById('evidence-support-display');
 const followupList = document.getElementById('followup-list');
 const citationsList = document.getElementById('citations-list');
-const sourcesList = document.getElementById('sources-list');
 const activeSessionTitle = document.getElementById('active-session-title');
 
 
@@ -124,6 +123,25 @@ async function triggerReingest() {
   }
 }
 
+function typewriteText(element, fullText, speedMs = 14, onComplete = null) {
+  element.classList.add('streaming');
+  const words = fullText.split(' ');
+  let currentWordIdx = 0;
+  element.textContent = '';
+
+  const interval = setInterval(() => {
+    if (currentWordIdx < words.length) {
+      element.textContent += (currentWordIdx > 0 ? ' ' : '') + words[currentWordIdx];
+      currentWordIdx++;
+      chatFeed.scrollTop = chatFeed.scrollHeight;
+    } else {
+      clearInterval(interval);
+      element.classList.remove('streaming');
+      if (onComplete) onComplete();
+    }
+  }, speedMs);
+}
+
 async function handleFormSubmit(e) {
   e.preventDefault();
   const query = userInput.value.trim();
@@ -178,23 +196,37 @@ async function handleFormSubmit(e) {
     }
 
     const data = await res.json();
+    hideExecutionTimeline();
 
     if (!data.is_safe && data.safety_response) {
       // Query blocked by guardrail
       const msgText = `⚠️ **Query Blocked by Guardrail**\n\nReason: ${data.safety_response.reason}\n${data.safety_response.message}`;
-      session.messages.push({ sender: 'assistant', text: msgText });
+      session.messages.push({
+        sender: 'assistant',
+        text: msgText,
+        cached: data.cached,
+        similarity: data.similarity_score
+      });
       session.inspectorData = null;
       if (currentSessionId === session.id) {
-        appendMessage('assistant', msgText);
+        appendMessage('assistant', msgText, { cached: data.cached, similarity: data.similarity_score }, true);
         resetInspector();
       }
     } else if (data.response) {
       // Successful clinical summary response
       const resp = data.response;
-      session.messages.push({ sender: 'assistant', text: resp.summary, inspectorData: resp });
+      session.messages.push({
+        sender: 'assistant',
+        text: resp.summary,
+        inspectorData: resp,
+        cached: data.cached,
+        similarity: data.similarity_score
+      });
       session.inspectorData = resp;
       if (currentSessionId === session.id) {
-        appendMessage('assistant', resp.summary);
+        appendMessage('assistant', resp.summary, { cached: data.cached, similarity: data.similarity_score }, true, () => {
+          updateInspector(resp);
+        });
         updateInspector(resp);
       }
     } else {
@@ -206,6 +238,7 @@ async function handleFormSubmit(e) {
     }
   } catch (err) {
     console.error('Chat error:', err);
+    hideExecutionTimeline();
     const errText = `⚠️ **MediAI Service Error**: ${err.message}`;
     session.messages.push({ sender: 'assistant', text: errText });
     if (currentSessionId === session.id) {
@@ -241,16 +274,16 @@ function renderCurrentSession() {
         <h3>Clinical Evidence Assistant</h3>
         <p>Ask evidence-based clinical questions about guidelines, treatment algorithms, and biomedical literature. Answers are synthesized directly from verified sources.</p>
         <div class="sample-queries">
-          <button class="sample-query-btn">What is the recommended first-line treatment for Type 2 Diabetes according to NICE guidelines?</button>
-          <button class="sample-query-btn">How do SGLT2 inhibitors compare with GLP-1 receptor agonists in reducing cardiovascular risk?</button>
-          <button class="sample-query-btn">What are the target HbA1c thresholds for elderly patients with chronic kidney disease?</button>
+          <button class="sample-query-btn">Which adults with type 2 diabetes should be offered continuous glucose monitoring (CGM) according to Quality Statement 3?</button>
+          <button class="sample-query-btn">What are the three main benefits of SGLT-2 inhibitors for adults with type 2 diabetes?</button>
+          <button class="sample-query-btn">What conditions must be met for finerenone to be recommended for adults with stage 3 or 4 chronic kidney disease associated with type 2 diabetes?</button>
         </div>
       </div>
     `;
     resetInspector();
   } else {
     session.messages.forEach(msg => {
-      appendMessage(msg.sender, msg.text);
+      appendMessage(msg.sender, msg.text, { cached: msg.cached, similarity: msg.similarity }, false);
     });
 
     if (session.inspectorData) {
@@ -279,27 +312,43 @@ function stripMarkdownForUI(text) {
   return cleaned.trim();
 }
 
-function appendMessage(sender, text) {
+function appendMessage(sender, text, metadata = {}, animate = false, onComplete = null) {
   const msgDiv = document.createElement('div');
   msgDiv.className = `message message-${sender}`;
 
   const senderLabel = document.createElement('span');
   senderLabel.className = 'message-sender';
-  senderLabel.textContent = sender === 'user' ? 'Clinical Practitioner' : 'MediAI Synthesis';
+  if (sender === 'user') {
+    senderLabel.textContent = 'Clinical Practitioner';
+  } else {
+    if (metadata.cached) {
+      const simPercent = metadata.similarity ? ` (${(metadata.similarity * 100).toFixed(1)}% match)` : '';
+      senderLabel.innerHTML = `MediAI Synthesis <span style="display:inline-flex; align-items:center; gap:3px; background:rgba(16, 185, 129, 0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3); border-radius:12px; padding:1px 8px; font-size:11px; margin-left:8px; font-weight:500;">⚡ Semantic Cache Hit${simPercent}</span>`;
+    } else {
+      senderLabel.textContent = 'MediAI Synthesis';
+    }
+  }
 
   const bubble = document.createElement('div');
   bubble.className = 'message-bubble';
 
   const summarySec = document.createElement('div');
   summarySec.className = 'summary-section';
-  summarySec.textContent = sender === 'assistant' ? stripMarkdownForUI(text) : text;
-  bubble.appendChild(summarySec);
+  const cleanedText = sender === 'assistant' ? stripMarkdownForUI(text) : text;
 
+  bubble.appendChild(summarySec);
   msgDiv.appendChild(senderLabel);
   msgDiv.appendChild(bubble);
 
   chatFeed.appendChild(msgDiv);
   chatFeed.scrollTop = chatFeed.scrollHeight;
+
+  if (animate && sender === 'assistant' && cleanedText) {
+    typewriteText(summarySec, cleanedText, 14, onComplete);
+  } else {
+    summarySec.textContent = cleanedText;
+    if (onComplete) onComplete();
+  }
 }
 
 
@@ -358,7 +407,7 @@ function updateInspector(resp) {
       card.id = `citation-card-${refId}`;
 
       const isPubmed = c.source_type === 'pubmed' || (c.pmid && String(c.pmid).toLowerCase() !== 'unavailable');
-      
+
       let metaItems = [];
       if (isPubmed) {
         if (c.pmid && String(c.pmid).toLowerCase() !== 'unavailable') {
@@ -392,22 +441,6 @@ function updateInspector(resp) {
   } else {
     citationsList.innerHTML = '<span class="empty-state-text">No citations generated.</span>';
   }
-
-  // Sources
-  sourcesList.innerHTML = '';
-  if (resp.evidence_sources && resp.evidence_sources.length > 0) {
-    resp.evidence_sources.forEach(s => {
-      const card = document.createElement('div');
-      card.className = 'source-card';
-      card.innerHTML = `
-        <div style="font-weight: 500;">${escapeHtml(s.title || 'Source')}</div>
-        <span class="source-tier">${escapeHtml(s.evidence_type || 'Unclassified')}</span>
-      `;
-      sourcesList.appendChild(card);
-    });
-  } else {
-    sourcesList.innerHTML = '<span class="empty-state-text">No evidence sources.</span>';
-  }
 }
 
 function highlightCitationCard(refId) {
@@ -428,7 +461,6 @@ function resetInspector() {
   }
   followupList.innerHTML = '<span class="empty-state-text">No active response loaded.</span>';
   citationsList.innerHTML = '<span class="empty-state-text">No citations generated yet.</span>';
-  sourcesList.innerHTML = '<span class="empty-state-text">No sources retrieved yet.</span>';
 }
 
 

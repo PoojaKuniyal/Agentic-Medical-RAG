@@ -25,12 +25,8 @@ def _manifest_path(knowledge_dir: Path) -> Path:
 def load_manifest(knowledge_dir: Path) -> dict[str, str]:
     """
     Load the existing manifest.
-
-    Returns
-    -------
-    dict mapping relative PDF path (str) → SHA-256 hex digest (str).
-    Returns an empty dict if no manifest exists yet.
-    """
+    Returns a dict mapping relative PDF path to SHA-256 hex digest.
+    """ 
     path = _manifest_path(knowledge_dir)
     if not path.exists():
         return {}
@@ -62,24 +58,14 @@ def find_changed_pdfs(
     manifest: dict[str, str],
 ) -> tuple[list[Path], list[Path]]:
     """
-    Scan knowledge_dir recursively for PDFs and identify changes.
-
-    Parameters
-    ----------
-    knowledge_dir : Root of the knowledge directory (contains collection subdirectories).
-    manifest : The currently persisted manifest.
-
-    Returns
-    -------
-    new_or_modified : PDFs that are new or whose hash differs from the manifest.
-    unchanged : PDFs whose hash matches the manifest — no action needed.
+    Scan knowledge_dir recursively for PDFs and identify changes. 
     """
     new_or_modified: list[Path] = []
     unchanged: list[Path] = []
 
     for pdf_path in sorted(knowledge_dir.rglob("*.pdf")):
         relative_key = pdf_path.relative_to(knowledge_dir).as_posix()
-        current_hash = compute_hash(pdf_path)
+        current_hash = compute_hash(pdf_path) 
 
         if manifest.get(relative_key) != current_hash:
             logger.info("Detected new/modified PDF: %s", relative_key)

@@ -49,7 +49,7 @@ def run_reflection(state: ClinicalState) -> dict:
         )
         return {"reflection_needed": False, "reflection_count": reflection_count}
 
-    llm = get_llm(temperature=0.0)
+    llm = get_llm(model_tier="fast", temperature=0.0)
 
     messages = [
         SystemMessage(content=REFLECTION_SYSTEM_PROMPT),
@@ -64,7 +64,10 @@ def run_reflection(state: ClinicalState) -> dict:
     ]
 
     response = llm.invoke(messages)
-    raw = response.content.strip()
+    raw_content = response.content
+    if isinstance(raw_content, list):
+        raw_content = "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in raw_content)
+    raw = str(raw_content).strip()
     import re
     # 1. Remove <think> reasoning blocks
     raw_cleaned = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE).strip()

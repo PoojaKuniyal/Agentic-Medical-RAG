@@ -19,9 +19,6 @@ logger = logging.getLogger(__name__)
 def load_memory_node(state: ClinicalState) -> dict:
     """
     Load session memory from Redis and inject it into the graph state.
-
-    Reads:  session_id
-    Writes: memory_context
     """
     session_id = state.get("session_id", "default")
     logger.info("[MemoryAgent] Loading session context for session_id=%s", session_id)
@@ -37,9 +34,6 @@ def load_memory_node(state: ClinicalState) -> dict:
 def save_memory_node(state: ClinicalState) -> dict:
     """
     Save the current turn to Redis after the Evidence Synthesis Agent completes.
-
-    Reads:  session_id, query, final_response, plan
-    Writes: nothing (side-effect only — Redis write)
     """
     session_id = state.get("session_id", "default")
     query = state.get("query", "")

@@ -10,7 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy and install Python dependencies first (layer caching)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Pre-install CPU-only PyTorch (much smaller download) & increase pip timeouts
+RUN pip install --no-cache-dir --default-timeout=1000 torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir --default-timeout=1000 --retries 10 -r requirements.txt
 
 # Copy application source
 COPY app/ ./app/

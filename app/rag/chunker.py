@@ -1,8 +1,6 @@
 """
 Text chunking using LangChain's RecursiveCharacterTextSplitter.
-
 This file takes each page and breaks it into smaller overlapping pieces/ chunks.
-
 Chunk size and overlap are configurable via .env (CHUNK_SIZE, CHUNK_OVERLAP).
 Each chunk retains all metadata from its source page.
 """
@@ -28,16 +26,6 @@ def chunk_pages(pages: list[dict]) -> list[dict]:
     """
     Split a list of page records into continuous text chunks across page boundaries
     based on semantic text continuity, while preserving starting page_number metadata.
-
-    Parameters
-    ----------
-    pages : list of page dicts (from loader.load_pdf)
-        Each dict must have: text, source_pdf, collection, page_number.
-
-    Returns
-    -------
-    list of chunk dicts with keys:
-        text, source_pdf, collection, page_number, chunk_index
     """
     if not pages:
         return []
@@ -51,8 +39,7 @@ def chunk_pages(pages: list[dict]) -> list[dict]:
         add_start_index=True,
     )
 
-    # 1. Concatenate all page texts into a continuous document string
-    # and record character offset intervals for each page
+    # 1. Concatenate all page texts into a continuous document string, record character offset intervals for each page
     full_text_parts: list[str] = []
     page_offsets: list[tuple[int, int, int]] = []  # (start_char, end_char, page_number)
     current_offset = 0

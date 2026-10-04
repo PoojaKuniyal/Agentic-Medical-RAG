@@ -18,9 +18,8 @@ import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.graph.state import (
+from app.graph.schemas import (
     Citation,
-    ClinicalState,
     ClinicalSummaryResponse,
     EvidenceSource,
     EvidenceSupport,
@@ -28,6 +27,7 @@ from app.graph.state import (
     PubMedArticle,
     RankedEvidence,
 )
+from app.graph.state import ClinicalState
 from app.llm.factory import get_llm
 from app.prompts import CLINICAL_SUMMARY_SYSTEM_PROMPT
 
@@ -61,21 +61,35 @@ def _build_programmatic_citations_and_sources(
     
     citations: list[Citation] = []
     evidence_sources: list[EvidenceSource] = []
+    seen_citation_keys = set()
+    seen_source_keys = set()
+    citation_counter = 1
 
     for item in ranked_evidence[:10]:
-        ref_id = f"REF-{item.rank:03d}"
-        
         src_type = "clinical_guideline" if item.source_type == "guideline" else item.source_type
-        evidence_sources.append(
-            EvidenceSource(
-                source_type=src_type,
-                collection=item.collection,
-                title=item.title,
-                evidence_type=item.evidence_type,
+        
+        # Deduplicate evidence sources
+        src_key = (src_type, item.title)
+        if src_key not in seen_source_keys:
+            seen_source_keys.add(src_key)
+            evidence_sources.append(
+                EvidenceSource(
+                    source_type=src_type,
+                    collection=item.collection,
+                    title=item.title,
+                    evidence_type=item.evidence_type,
+                )
             )
-        )
         
         if item.source_type == "pubmed":
+            cite_key = ("pubmed", item.source_ref or item.title)
+            if cite_key in seen_citation_keys:
+                continue
+            seen_citation_keys.add(cite_key)
+
+            ref_id = f"REF-{citation_counter:03d}"
+            citation_counter += 1
+
             article = pubmed_map.get(item.source_ref)
             pmid_val = item.source_ref if (item.source_ref and item.source_ref.isdigit()) else None
             journal_val = article.journal if article and article.journal else None
@@ -102,6 +116,14 @@ def _build_programmatic_citations_and_sources(
                     page_val = g.page
                     break
             
+            cite_key = ("guideline", item.source_ref or item.title, page_val)
+            if cite_key in seen_citation_keys:
+                continue
+            seen_citation_keys.add(cite_key)
+
+            ref_id = f"REF-{citation_counter:03d}"
+            citation_counter += 1
+
             citations.append(
                 Citation(
                     reference_id=ref_id,
@@ -135,7 +157,7 @@ def run_clinical_summary(state: ClinicalState) -> dict:
         ranked_evidence, pubmed_evidence, guideline_evidence
     )
 
-    llm = get_llm(temperature=0.0)
+    llm = get_llm(temperature=0.1)
 
     support_summary = (
         evidence_support.retrieval_relevance_summary if evidence_support else "Retrieved evidence items loaded."
@@ -154,7 +176,10 @@ def run_clinical_summary(state: ClinicalState) -> dict:
     ]
 
     response = llm.invoke(messages)
-    raw = response.content.strip()
+    raw_content = response.content
+    if isinstance(raw_content, list):
+        raw_content = "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in raw_content)
+    raw = str(raw_content).strip()
     import re
     # 1. Remove <think> reasoning blocks
     raw_cleaned = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE).strip()
@@ -259,8 +284,15 @@ def _build_fallback_response(
 ) -> ClinicalSummaryResponse:
     """Minimal fallback response when LLM JSON parsing fails."""
     citations = []
-    for i, item in enumerate(ranked_evidence[:5], 1):
-        ref_id = f"REF-{i:03d}"
+    seen_refs = set()
+    counter = 1
+    for item in ranked_evidence[:10]:
+        key = (item.source_type, item.source_ref or item.title)
+        if key in seen_refs:
+            continue
+        seen_refs.add(key)
+        ref_id = f"REF-{counter:03d}"
+        counter += 1
         if item.source_type == "pubmed":
             citations.append(
                 Citation(
@@ -279,15 +311,21 @@ def _build_fallback_response(
                 )
             )
 
-    evidence_sources = [
-        EvidenceSource(
-            source_type=item.source_type,
-            collection=item.collection,
-            title=item.title,
-            evidence_type=item.evidence_type,
+    seen_sources = set()
+    evidence_sources = []
+    for item in ranked_evidence[:10]:
+        key = (item.source_type, item.title)
+        if key in seen_sources:
+            continue
+        seen_sources.add(key)
+        evidence_sources.append(
+            EvidenceSource(
+                source_type=item.source_type,
+                collection=item.collection,
+                title=item.title,
+                evidence_type=item.evidence_type,
+            )
         )
-        for item in ranked_evidence[:5]
-    ]
 
     cleaned_reasoning = _clean_summary_text(reasoning)
     lines = [line.strip() for line in cleaned_reasoning.split("\n") if line.strip() and not line.strip().startswith("#")]

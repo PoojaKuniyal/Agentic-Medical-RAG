@@ -3,18 +3,16 @@ Planner Agent — intent classification and routing.
 
 Decides whether to use only GuidelineRAG, only PubMed, or both.
 If using GuidelineRAG, decides which Chroma collections to query.
-
-NEVER accesses Chroma or PubMed directly.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.graph.state import ClinicalState, PlannerOutput
+from app.graph.schemas import PlannerOutput
+from app.graph.state import ClinicalState
 from app.llm.factory import get_llm
 from app.prompts import PLANNER_SYSTEM_PROMPT
 
@@ -25,7 +23,7 @@ _FALLBACK_PLAN = PlannerOutput(
     intent="general_clinical_query",
     clinical_topic="general_clinical",
     retrieval_agents=["guideline_rag", "pubmed"],
-    chroma_collections=["clinical_guidelines", "consensus_reports"],
+    chroma_collections=["clinical_guidelines", "consensus_reports", "research_articles"],
     reasoning="Fallback: query both retrieval agents with all collections.",
 )
 
@@ -33,15 +31,13 @@ _FALLBACK_PLAN = PlannerOutput(
 def run_planner(state: ClinicalState) -> dict:
     """
     LangGraph node function for the Planner Agent.
-
-    Reads:  query, memory_context
-    Writes: plan
     """
     query = state["query"]
     memory_context = state.get("memory_context", {})
     logger.info("[PlannerAgent] Classifying intent and building routing plan …")
 
-    llm = get_llm(temperature=0.0)
+    llm = get_llm(model_tier="fast", temperature=0.0)
+    structured_llm = llm.with_structured_output(PlannerOutput)
 
     history_str = ""
     if memory_context.get("conversation_history"):
@@ -60,22 +56,16 @@ def run_planner(state: ClinicalState) -> dict:
         HumanMessage(content=user_message),
     ]
 
-    response = llm.invoke(messages)
-    raw = response.content.strip()
-
-    import re
-    # 1. Remove <think> reasoning blocks
-    raw_cleaned = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE).strip()
-    # 2. Extract JSON object {...}
-    json_match = re.search(r"\{.*\}", raw_cleaned, re.DOTALL)
-    json_str = json_match.group(0) if json_match else raw_cleaned
-
     try:
-        data = json.loads(json_str, strict=False)
-        plan = PlannerOutput(**data)
-    except (json.JSONDecodeError, TypeError, ValueError) as exc:
-        logger.warning("[PlannerAgent] Could not parse plan — using fallback. Error: %s", exc)
+        plan = structured_llm.invoke(messages)
+        if isinstance(plan,dict):
+            plan = PlannerOutput(**plan)
+        elif not isinstance(plan, PlannerOutput):
+            raise ValueError(f'Unexpected plan output type: {type(plan)}')
+    except Exception as exc:
+        logger.warning("[PlannerAgent] Could not parse plan — using fallback. Error: %s", exc) 
         plan = _FALLBACK_PLAN
+
 
     logger.info(
         "[PlannerAgent] Plan: agents=%s collections=%s intent='%s'",

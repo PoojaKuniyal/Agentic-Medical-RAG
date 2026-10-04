@@ -19,7 +19,7 @@ Environment Variables
 # ── LLM Provider ────────────────────────────────────────────────────
 # Supported: google_genai | openai | anthropic | groq
 LLM_PROVIDER=groq
-LLM_MODEL=qwen/qwen3.6-27b
+LLM_MODEL=openai/gpt-oss-20b 
 GROQ_API_KEY=YOUR_API_KEY
 
 # Google AI Studio API key (used when LLM_PROVIDER=google_genai)
@@ -47,7 +47,7 @@ CHROMA_PERSIST_DIR=./chroma_db   # used when CHROMA_MODE=local
 KNOWLEDGE_DIR=./knowledge
 CHUNK_SIZE=1000
 CHUNK_OVERLAP=150
-EMBEDDING_MODEL=all-MiniLM-L6-v2
+EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 
 # Optional Hugging Face Hub token to eliminate rate-limit warnings when downloading models
 # HF_TOKEN=YOUR_API_KEY
@@ -57,7 +57,6 @@ EMBEDDING_MODEL=all-MiniLM-L6-v2
 # NCBI requires an email for API usage identification
 PUBMED_EMAIL=YOUR_EMAIL_ID
 PUBMED_MAX_RESULTS=5
-PUBMED_TOOL=entrez         # entrez | mcp — swap without changing agent code
 
 # ── Reflection ───────────────────────────────────────────────────────────────
 MAX_REFLECTION_ITERATIONS=2
@@ -66,3 +65,14 @@ MAX_REFLECTION_ITERATIONS=2
 # Set to true to run integration tests against live APIs
 INTEGRATION_TESTS=false
 
+When you update your env
+Apply changes instantly (takes 2 seconds):
+docker compose -f docker/docker-compose.yml up -d --no-build api
+
+When you update your code but NOT env
+Restart container:
+docker compose -f docker/docker-compose.yml restart api
+
+When you update your code AND env
+Rebuild & restart:
+docker compose -f docker/docker-compose.yml up -d --build api

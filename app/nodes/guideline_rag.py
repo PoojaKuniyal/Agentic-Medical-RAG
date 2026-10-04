@@ -9,28 +9,43 @@ from __future__ import annotations
 
 import logging
 
-from app.graph.state import ClinicalState, GuidelineChunk
+from app.graph.schemas import GuidelineChunk
+from app.graph.state import ClinicalState
 from app.rag.vectorstore import similarity_search
+
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_N_RESULTS = 10 # Number of chunks to retrieve from each collection
+DEFAULT_N_RESULTS = 5  # Number of top chunks to retrieve from each collection
+MAX_TOTAL_GUIDELINE_CHUNKS = 10  # Maximum overall top-scoring chunks to retain
+
+
+def _is_boilerplate_chunk(text: str) -> bool:
+    """Filter out short header/footer notices, page numbers, and copyright boilerplate."""
+    cleaned = text.strip()
+    if len(cleaned) < 80:
+        return True
+    lower = cleaned.lower()
+    if "notice-of-rights" in lower or "terms-and-conditions" in lower:
+        return True
+    return False
 
 
 def run_guideline_rag(state: ClinicalState) -> dict:
     """
-    LangGraph node function for clinical guideline retrieval.
-
-    Reads:  query, plan (for chroma_collections)
-    Writes: guideline_evidence, guideline_results_count
+    LangGraph node function for local PDF knowledge retrieval.
     """
     query = state["query"]
     plan = state.get("plan") 
-        # Gets the Planner's collection decision
+    settings = get_settings()
+    all_known_collections = list(settings.chroma_collections.values())
+
+    # Search all local knowledge collections by default if guideline_rag is invoked
     collections: list[str] = ( 
         plan.chroma_collections
         if plan and plan.chroma_collections
-        else ["clinical_guidelines", "consensus_reports", "research_articles"]
+        else all_known_collections
     )
 
     logger.info(
@@ -49,11 +64,14 @@ def run_guideline_rag(state: ClinicalState) -> dict:
                 n_results=DEFAULT_N_RESULTS,
             )
             # Converts raw Chroma results into GuidelineChunk Pydantic model objects 
-            for chunk in raw_chunks: 
-                all_chunks.append( # combines results from all collections
+            for chunk in raw_chunks:
+                text_content = chunk["text"]
+                if _is_boilerplate_chunk(text_content):
+                    continue
+                all_chunks.append(
                     GuidelineChunk(       
                         chunk_id=chunk["chunk_id"],
-                        text=chunk["text"],
+                        text=text_content,
                         source_pdf=chunk["source_pdf"],
                         page=chunk.get("page_number"),
                         collection=chunk["collection"],
@@ -67,11 +85,12 @@ def run_guideline_rag(state: ClinicalState) -> dict:
                 exc,
             )
 
-    # Sort by score descending: chunks that were most semantically similar to the query 
+    # Sort by score descending and keep only the top N highest-quality chunks
     all_chunks.sort(key=lambda c: c.score, reverse=True)
+    all_chunks = all_chunks[:MAX_TOTAL_GUIDELINE_CHUNKS]
 
     logger.info(
-        "[GuidelineRAGAgent] Retrieved %d chunks from %d collections",
+        "[GuidelineRAGAgent] Retained top %d high-relevance chunks from %d collections",
         len(all_chunks),
         len(collections),
     )

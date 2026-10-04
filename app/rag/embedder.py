@@ -1,21 +1,20 @@
 """
 Sentence Transformers embedder.
 
-Uses the model specified by EMBEDDING_MODEL in .env (default: all-MiniLM-L6-v2).
+Uses the model specified by EMBEDDING_MODEL in .env
 The model is loaded once and cached for the lifetime of the process.
 """
 
 from __future__ import annotations
 
 import logging
-from functools import lru_cache # to cache the model and only load it once
-
+from functools import lru_cache 
 from app.config import get_settings 
 
 logger = logging.getLogger(__name__)
 
 
-@lru_cache(maxsize=1) 
+@lru_cache(maxsize=1)
 def _get_model():
     """Load and cache the SentenceTransformer model."""
     try:
@@ -35,17 +34,9 @@ def _get_model():
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
     """
-    Generate embeddings for a list of text strings.
-
-    Parameters
-    ----------
-    texts : The texts to embed.
-
-    Returns
-    -------
-    list of embedding vectors (each a list of floats).
+    Generate vector embeddings for a list of text strings.
     """
-    model = _get_model()
+    model = _get_model()        
     embeddings = model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
     return embeddings.tolist()
 

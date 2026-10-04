@@ -1,20 +1,6 @@
 """
 LLM provider factory with automatic resilience.
-
-This file is acting as an LLM Factory.
-
-The idea is:
-All agents call `get_llm()` — they have zero knowledge of the underlying
-provider. Swapping LLM_PROVIDER in .env is sufficient to change the model
-globally without touching any agent code.
-
-Supported providers
-  • google_genai  — Gemini via Google AI Studio
-  • openai        — OpenAI Chat models
-  • anthropic     — Anthropic Claude models
-  • groq          — Groq Cloud models
-  • ollama        — Local open-source models via Ollama
-  • open_source   — Open-source models via OpenAI-compatible endpoints (vLLM, LM Studio, etc.)
+Swapping LLM_PROVIDER in .env is sufficient to change the model globally without touching any agent code.
 """
 
 from functools import lru_cache
@@ -45,8 +31,10 @@ class ResilientChatModel(BaseChatModel):
         return f"resilient_{self.provider_name}"
 
     def with_structured_output(self, schema: Any, **kwargs: Any) -> Any:
-        """Delegate structured output binding directly to the primary LLM provider."""
-        if "method" not in kwargs and self.provider_name in ("groq", "ollama", "open_source"):
+        """
+        LLM is required to return its response in a predefined structured format 
+        """
+        if "method" not in kwargs and self.provider_name in ("ollama", "open_source"):
             kwargs["method"] = "json_mode"
         return self.primary_llm.with_structured_output(schema, **kwargs)
 
@@ -73,6 +61,19 @@ class ResilientChatModel(BaseChatModel):
                 response_message = self.primary_llm.invoke(
                     messages, stop=stop, config=config, **kwargs
                 )
+                if isinstance(response_message.content, list):
+                    text_parts = []
+                    for part in response_message.content:
+                        if isinstance(part, str):
+                            text_parts.append(part)
+                        elif isinstance(part, dict) and "text" in part:
+                            text_parts.append(part["text"])
+                        elif hasattr(part, "text"):
+                            text_parts.append(getattr(part, "text"))
+                        else:
+                            text_parts.append(str(part))
+                    response_message.content = "".join(text_parts)
+
                 if isinstance(response_message.content, str) and "<think>" in response_message.content.lower(): # Clean <think> tags at the LLM Factory level
                     import re
                     response_message.content = re.sub(
@@ -127,16 +128,29 @@ class ResilientChatModel(BaseChatModel):
                 raise exc
 
 
-# Backward compatibility alias
-SmartFallbackChatModel = ResilientChatModel
+_FAST_MODEL_DEFAULTS = {
+    "groq": "qwen/qwen3.8-27b",
+    "google_genai": "gemini-2.5-flash",
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-3-haiku-20240307",
+}
 
-
-def get_llm(**kwargs: Any) -> BaseChatModel:
+def _create_llm_instance(model_tier: str = "primary", **kwargs: Any) -> BaseChatModel:
     """
     Return a configured LangChain chat model instance wrapped in ResilientChatModel.
+    model_tier can be 'primary' (default) or 'fast' (for classification/guardrails/planner).
     """
     settings = get_settings()
     provider = settings.llm_provider
+
+    if model_tier == "fast":
+        if settings.llm_fast_provider:
+            provider = settings.llm_fast_provider
+        if "model" not in kwargs:
+            if settings.llm_fast_model:
+                kwargs["model"] = settings.llm_fast_model
+            elif provider in _FAST_MODEL_DEFAULTS:
+                kwargs["model"] = _FAST_MODEL_DEFAULTS[provider]
 
     if provider == "google_genai":
         primary_llm = _build_google_genai(settings, **kwargs)
@@ -301,6 +315,19 @@ def _build_open_source(settings: Any, **kwargs: Any) -> BaseChatModel:
     return ChatOpenAI(**defaults)
 
 
-@lru_cache(maxsize=1)
-def get_cached_llm() -> BaseChatModel:
-    return get_llm()
+def _freeze_kwargs(kwargs: dict) -> tuple:
+    return tuple(sorted((k, v) for k, v in kwargs.items()))
+
+@lru_cache(maxsize=32)
+def _get_llm_cached(model_tier: str, frozen_kwargs: tuple) -> BaseChatModel:
+    # Calls _create_llm_instance and caches the resulting ResilientChatModel
+    return _create_llm_instance(model_tier=model_tier, **dict(frozen_kwargs))
+
+
+def get_llm(model_tier: str = "primary", **kwargs: Any) -> BaseChatModel:
+    """Returns the cached ResilientChatModel instance."""
+    return _get_llm_cached(model_tier, _freeze_kwargs(kwargs))
+
+
+# The wrapper and underlying HTTP client session are instantiated once and reused across all graph nodes.
+

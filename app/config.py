@@ -1,12 +1,10 @@
 """
 Centralised configuration using Pydantic BaseSettings.
-Configuration variables with default values
-All values are loaded from environment variables (or a .env file).
 This file centralizes configuration, validates it, and makes it available consistently across the application.
 """
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,6 +21,8 @@ class Settings(BaseSettings):
     # ── LLM ──────────────────────────────────────────────────────────────────
     llm_provider: Literal["google_genai", "openai", "anthropic", "groq", "ollama", "open_source"] = "ollama"
     llm_model: str = "llama3"
+    llm_fast_provider: Optional[Literal["google_genai", "openai", "anthropic", "groq", "ollama", "open_source"]] = Field(default=None, alias="LLM_FAST_PROVIDER")
+    llm_fast_model: str = Field(default="", alias="LLM_FAST_MODEL")
     google_api_key: str = Field(default="", alias="GOOGLE_API_KEY")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     redis_session_ttl: int = 3600  # seconds
 
+    # ── Semantic Cache ────────────────────────────────────────────────────────
+    enable_semantic_cache: bool = True
+    semantic_cache_threshold: float = 0.90  # Cosine similarity threshold (0.0 to 1.0)
+    semantic_cache_ttl: int = 86400  # seconds (24 hours)
+
     # ── Chroma ───────────────────────────────────────────────────────────────
     chroma_mode: Literal["http", "local"] = "http"
     chroma_host: str = "localhost"
@@ -48,16 +53,15 @@ class Settings(BaseSettings):
 
     # ── RAG ──────────────────────────────────────────────────────────────────
     knowledge_dir: str = "./knowledge"
-    chunk_size: int = 512
-    chunk_overlap: int = 64
-    embedding_model: str = "all-MiniLM-L6-v2"
+    chunk_size: int = 1000
+    chunk_overlap: int = 150
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
     hf_token: str = Field(default="", alias="HF_TOKEN")
 
 
     # ── PubMed ───────────────────────────────────────────────────────────────
-    pubmed_email: str = Field(default="", alias="PUBMED_EMAIL") # NCBI asks users to provide one (your email id)
+    pubmed_email: str = Field(default="", alias="PUBMED_EMAIL") # NCBI asks users to provide one (your email id) for API identification.
     pubmed_max_results: int = 10    # Maximum papers retrieved
-    pubmed_tool: Literal["entrez", "mcp"] = "entrez"  # Two retrieval methods (Entrez and MCP) - Current code can switch simply by changing configuration
 
     # ── Reflection ───────────────────────────────────────────────────────────
     max_reflection_iterations: int = 2 # Maximum number of reflection iterations (agent loop)

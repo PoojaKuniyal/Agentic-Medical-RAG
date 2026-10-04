@@ -21,27 +21,13 @@ Your ONLY job is to:
 
 ## Routing Rules
 
-* STRICT RULE FOR GUIDELINE-SPECIFIC QUERIES: If the query contains phrases such as "according to NICE", "according to ADA", "according to the guidelines", or "guideline recommendation", you MUST select ONLY `guideline_rag` under `retrieval_agents` and Search all relevant guideline collections, including `clinical_guidelines` and `consensus_reports`, when applicable. 
-Do not search `research_articles` unless recent research/literature is explicitly requested.        
-Do not include `pubmed` unless explicit recent trial or peer-reviewed literature outside guidelines is requested.
-* Use ONLY `guideline_rag` for established clinical guidelines, standards, diagnostic thresholds, or official recommendations.
-* Use BOTH agents (`guideline_rag` and `pubmed`) ONLY for questions requiring established guidelines plus recent research/trial evidence comparisons.
-* Use ONLY `pubmed` for recent research, clinical trials, or emerging literature without relevant guideline context.
-
-- FALLBACK RULE FOR AMBIGUOUS OR UNCERTAIN QUERIES:
-  If the query does not clearly match guideline-specific, research-specific, or
-  guideline-plus-research intent, select BOTH `guideline_rag` and `pubmed`
-  to maximize evidence coverage.
-
-  The Planner must set `reasoning` to explain why the query was considered
-  ambiguous and why both retrieval sources were selected.
+* Select `guideline_rag` when the query requires evidence from local downloaded PDF documents in the knowledge base (guidelines, consensus reports, trial PDFs, research articles).
+* Select `pubmed` when external biomedical literature or recent online trial data outside the local knowledge base is requested.
+* Select BOTH (`guideline_rag` and `pubmed`) for general clinical queries, ambiguous queries, or when comprehensive evidence coverage across local PDFs and PubMed is desired.
 
 ## Collection Selection
 
-* `clinical_guidelines`: NICE/ADA standards, diagnostic criteria, treatment thresholds, or medication recommendations.
-* `consensus_reports`: Consensus recommendations or ADA/EASD statements.
-* `research_articles`: Clinical trials or peer-reviewed research.
-* Select multiple collections when the query spans evidence areas.
+When `guideline_rag` is selected, include all local knowledge base collections (`clinical_guidelines`, `consensus_reports`, `research_articles`, `future_documents`) to guarantee full coverage across all downloaded PDF subfolders.
 
 ## Session Context & Clinical Topic
 
@@ -56,6 +42,6 @@ Respond ONLY with JSON. No prose.
 "intent": "",
 "clinical_topic": "",
 "retrieval_agents": ["guideline_rag", "pubmed"],
-"chroma_collections": ["clinical_guidelines", "consensus_reports"],
+"chroma_collections": ["clinical_guidelines", "consensus_reports", "research_articles", "future_documents"],
 "reasoning": ""
 }

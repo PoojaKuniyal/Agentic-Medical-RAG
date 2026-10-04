@@ -1,7 +1,7 @@
 """
 PubMed — biomedical literature retrieval only.
 
-Calls the AbstractPubMedTool (Entrez by default, MCP-swappable).
+Calls EntrezPubMedTool (NCBI Entrez).
 Extracts concise medical search terms from user queries before searching PubMed.
 Populates pubmed_evidence, pubmed_query, and pubmed_error_reason in state.
 """
@@ -13,9 +13,10 @@ import re
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.graph.state import ClinicalState, PubMedArticle
+from app.graph.schemas import PubMedArticle
+from app.graph.state import ClinicalState
 from app.llm.factory import get_llm
-from app.tools.base import get_pubmed_tool
+from app.tools.pubmed_tool import get_pubmed_tool
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,10 @@ def _extract_medical_keywords(query: str) -> str:
             HumanMessage(content=f"User Query: {query}"),
         ]
         response = llm.invoke(messages) # acts as a query-translation agent step to formulate optimal biomedical search terms 
-        extracted = response.content.strip().replace("\n", " ").strip("\"'")
+        raw_content = response.content
+        if isinstance(raw_content, list):
+            raw_content = "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in raw_content)
+        extracted = str(raw_content).strip().replace("\n", " ").strip("\"'")
         # Post-process to ensure no stray comparison, guideline, or filler tokens leaked through
         extracted = re.sub(
             r"(?i)\b(NICE|ADA|EASD|CDC|WHO|guidelines?|recommendations?|pubmed|evidence|literature|studies|compare|versus|comparison)\b",
@@ -108,9 +112,6 @@ def run_pubmed(state: ClinicalState) -> dict:
     """
     LangGraph node function for the PubMed Agent.
     Hybrid LangGraph Node that performs both an LLM task and an external tool execution 
-
-    Reads:  query
-    Writes: pubmed_evidence, pubmed_query, pubmed_error_reason, pubmed_results_count, filtered_pubmed_results_count
     """
     raw_query = state.get("query", "")
     logger.info("[PubMedAgent] Processing user query: '%s'", raw_query[:80])

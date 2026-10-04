@@ -10,13 +10,13 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from app.graph.state import (
-    ClinicalState,
+from app.graph.schemas import (
     EvidenceSupport,
     GuidelineChunk,
     PubMedArticle,
     RankedEvidence,
 )
+from app.graph.state import ClinicalState
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +64,6 @@ def _classify_pubmed_article(publication_types: list[str]) -> str:
 def run_evidence_ranking(state: ClinicalState) -> dict:
     """
     LangGraph node function for Evidence Classification & Organization.
-
-    Reads:  guideline_evidence, pubmed_evidence
-    Writes: ranked_evidence, evidence_support
     """
     guideline_evidence = state.get("guideline_evidence", [])
     pubmed_evidence = state.get("pubmed_evidence", [])
