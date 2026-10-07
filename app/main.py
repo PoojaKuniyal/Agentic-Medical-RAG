@@ -5,6 +5,7 @@ FastAPI application entrypoint.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
@@ -16,6 +17,15 @@ from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.graph.schemas import ClinicalSummaryResponse, SafetyResponse
+
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +191,7 @@ async def health_check() -> HealthResponse:
 
 
 @app.post("/chat", response_model=ChatResponse, tags=["Clinical"])
+@traceable(name="ClinicalChatEndpoint", run_type="chain")
 async def chat(request: ChatRequest) -> ChatResponse:
     """
     Run the full multi-agent clinical evidence synthesis workflow with semantic caching.

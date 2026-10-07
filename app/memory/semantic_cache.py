@@ -17,6 +17,14 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
 from app.config import get_settings
 from app.rag.embedder import embed_query
 from app.rag.vectorstore import get_chroma_client
@@ -57,6 +65,7 @@ class SemanticCache:
         normalized = query.strip().lower()
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
 
+    @traceable(name="SemanticCache.lookup", run_type="retriever")
     def lookup(
         self,
         query: str,
@@ -182,6 +191,7 @@ class SemanticCache:
                 self._misses += 1
             return None
 
+    @traceable(name="SemanticCache.store", run_type="tool")
     def store(
         self,
         query: str,

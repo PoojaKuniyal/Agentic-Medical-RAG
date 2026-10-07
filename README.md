@@ -34,7 +34,7 @@ The generated synthesis presents concise, bulleted clinical recommendations pair
 ## 🏗️ Multi-Agent Architecture & Graph Nodes
 
 The system utilizes a dual-tier execution pipeline:
-1. **Semantic Caching Layer (Fast-Path)**: Evaluates incoming clinical queries using cosine vector similarity against previously verified syntheses in ChromaDB & Redis. If a query matches ($\ge 0.90$ similarity), the verified response is served immediately (~20ms), bypassing all LLM and external API calls.
+1. **Semantic Caching Layer (Fast-Path)**: Evaluates incoming clinical queries using cosine vector similarity against previously verified syntheses in ChromaDB & Redis. If a query matches ($\ge 0.90$ similarity), the verified response is served immediately (~70ms), bypassing all LLM and external API calls.
 2. **LangGraph Multi-Agent Workflow (Deep Synthesis)**: Orchestrated as a cyclic `StateGraph` separating **5 LLM-powered reasoning agents** (`app/agents/`) from **4 deterministic tools and processing nodes** (`app/nodes/`).
 
 ```
@@ -42,7 +42,7 @@ The system utilizes a dual-tier execution pipeline:
                                   │
                                   ▼
                    ┌──────────────────────────────┐
-                   │   ⚡ Semantic Cache Lookup    │ ──hit (≥0.90 sim)──► Instant Response (~20ms)
+                   │   ⚡ Semantic Cache Lookup    │ ──hit (≥0.90 sim)──► Instant Response (~70ms)
                    │  (Chroma Vectors + Redis TTL)│
                    └──────────────┬───────────────┘
                                   │ (miss)
@@ -220,7 +220,8 @@ Persists session context across multi-turn clinical conversations, allowing clin
 
 ## ⚡ Vector Semantic Caching (Fast-Path)
 
-To reduce redundant multi-agent pipeline executions and avoid PubMed API rate-limiting on common clinical inquiries, MedEvidence AI features an integrated **Semantic Cache**:
+To reduce redundant multi-agent pipeline executions and avoid PubMed API rate-limiting on common clinical inquiries, MedEvidence AI features an integrated **Semantic Cache**: 
+*Note: Caching is generally not recommended for medical applications due to the sensitivity and dynamic nature of medical information. It is implemented in this project solely for learning and demonstration purposes.*
 
 ```
                        Incoming User Query
@@ -261,6 +262,11 @@ When a semantic cache hit occurs, the response is served instantaneously with a 
 
 ![Semantic Cache Hit UI](images/semantic_cache.png)
 
+### Semantic Cache Fast-Path Trace (LangSmith)
+When a cached query is matched, the semantic cache short-circuits the entire multi-agent graph, returning the verified synthesis in **~70ms** (0.07s) as traced in LangSmith:
+
+![Semantic Cache Hit Latency Trace](images/Screenshot%202026-10-07%20122813.png)
+
 ---
 
 ## 🛡️ Clinical Guardrails & Safety Gate (Fail-Closed Pattern)
@@ -280,13 +286,13 @@ Full end-to-end trajectory tracing provides complete transparency across all LLM
 
 ![LangSmith Full Graph Trace](images/langsmith_trace.png)
 
-### ⏱️ Latency Breakdown & Bottleneck Analysis
+### ⏱️ Latency Breakdown & Bottleneck Analysis (for 1 trace)
 
 End-to-end execution latency across the multi-agent pipeline typically ranges from **20s to 75s** depending on query complexity, the number of retrieved evidence chunks, and reflection retry loops. 
 
 | Pipeline Stage / Node | Type | Typical Duration | Bottleneck Assessment |
 |---|---|:---:|---|
-| **Semantic Cache (Hit)** | ChromaDB + Redis | **~20ms** | ⚡ Instant fast-path bypass |
+| **Semantic Cache (Hit)** | ChromaDB + Redis | **~70ms** | ⚡ Instant fast-path bypass |
 | **Guardrail Agent** | LLM (Safety Check) | **0.3s – 0.8s** | Negligible overhead |
 | **Memory Load & Save** | Redis State | **< 0.05s** | Negligible overhead |
 | **Planner Agent** | LLM (Routing & Strategy) | **0.5s – 1.2s** | Fast routing decisions |
@@ -310,9 +316,10 @@ MedEvidence AI incorporates automated quantitative evaluation using **RAGAS** ac
 ### RAGAS Metric Performance Breakdown
 | Metric | Score | Industry Benchmark | Clinical Significance |
 |---|:---:|:---:|---|
-| **Faithfulness** | **0.7943** (~80%) | $\ge 0.85$ | **High Groundedness**: ~80% of claims in generated summaries are strictly grounded in retrieved evidence, minimizing hallucination risks. |
-| **Context Recall** | **0.8000** (80%) | $\ge 0.80$ | **High Retrieval Completeness**: 80% of essential clinical facts needed to answer the query were successfully retrieved by ChromaDB + PubMed nodes. |
-| **Answer Relevancy** | **0.5779** (~58%) | $\ge 0.80$ | **Conciseness & Directness**: Measures direct response alignment with user queries. Lower scores reflect summary agents including comprehensive background warnings and evidence disclaimers. |
+| **Answer Relevancy** | **0.9335** (93.4%) | $\ge 0.80$ | **Exceptional Directness**: Synthesized clinical responses align precisely with user queries with minimal filler. |
+| **Context Recall** | **0.6429** (64.3%) | $\ge 0.80$ | **Retrieval Completeness**: 64.3% of essential clinical facts retrieved via BAAI/bge-small-en-v1.5 from ChromaDB + PubMed. |
+| **Faithfulness** | **0.3976** (39.8%) | $\ge 0.85$ | **Groundedness**: Evaluates claim-level grounding against strict retrieved context chunks. |
+| **Context Precision** | **0.2225** (22.3%) | $\ge 0.70$ | **Rank Precision**: Proportion of top-ranked context chunks directly relevant to ground truth. | 
 
 *Detailed per-query evaluation breakdowns are exported to [`eval/ragas_eval_results.csv`](file:///c:/Users/Lenovo/MediAI_Langraph/eval/ragas_eval_results.csv).*
 

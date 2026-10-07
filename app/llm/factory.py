@@ -55,7 +55,7 @@ class ResilientChatModel(BaseChatModel):
         config = {"callbacks": callbacks} if callbacks else None
 
         # Total API attempts, including the initial request
-        max_attempts = 3 
+        max_attempts = 6
         for attempt in range(1, max_attempts + 1):
             try:
                 response_message = self.primary_llm.invoke(
@@ -109,7 +109,7 @@ class ResilientChatModel(BaseChatModel):
                                     ]
                 )
                 if is_retryable and attempt < max_attempts:
-                    wait_seconds = attempt * 15 # backoff for free tier RPM rate limits
+                    wait_seconds = attempt * 30 # Backoff for free tier rate limits
                     logger.warning(
                         "[LLM Factory] Rate limit / quota 429 encountered on attempt %d/%d for '%s'. Waiting %ds before retry...",
                         attempt,
@@ -245,6 +245,7 @@ def _build_groq(settings: Any, **kwargs: Any) -> BaseChatModel:
                 api_key=settings.groq_api_key,
                 base_url="https://api.groq.com/openai/v1",
                 temperature=0.1,
+                max_tokens=4096,
                 max_retries=0,
             )
             defaults.update(kwargs)
@@ -258,6 +259,7 @@ def _build_groq(settings: Any, **kwargs: Any) -> BaseChatModel:
         model=settings.llm_model,
         groq_api_key=settings.groq_api_key,
         temperature=0.1,
+        max_tokens=4096,
         max_retries=0,
     )
     defaults.update(kwargs)
