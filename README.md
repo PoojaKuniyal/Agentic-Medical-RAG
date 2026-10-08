@@ -286,22 +286,9 @@ Full end-to-end trajectory tracing provides complete transparency across all LLM
 
 ![LangSmith Full Graph Trace](images/langsmith_trace.png)
 
-### ⏱️ Latency Breakdown & Bottleneck Analysis (for 1 trace)
+### ⏱️ Latency Breakdown & Bottleneck Analysis
 
 End-to-end execution latency across the multi-agent pipeline typically ranges from **20s to 75s** depending on query complexity, the number of retrieved evidence chunks, and reflection retry loops. 
-
-| Pipeline Stage / Node | Type | Typical Duration | Bottleneck Assessment |
-|---|---|:---:|---|
-| **Semantic Cache (Hit)** | ChromaDB + Redis | **~70ms** | ⚡ Instant fast-path bypass |
-| **Guardrail Agent** | LLM (Safety Check) | **0.3s – 0.8s** | Negligible overhead |
-| **Memory Load & Save** | Redis State | **< 0.05s** | Negligible overhead |
-| **Planner Agent** | LLM (Routing & Strategy) | **0.5s – 1.2s** | Fast routing decisions |
-| **Guideline RAG Node** | ChromaDB Vector Search | **0.1s – 0.3s** | Ultra-fast dense vector retrieval |
-| **PubMed Node** | NCBI Entrez REST API | **2.0s – 5.0s** | Modest external network latency |
-| **Evidence Ranking Node** | Deterministic Module | **< 0.01s** | Instantaneous computation |
-| **Clinical Reasoning Agent** | LLM Multi-Doc Reasoning | **5.0s – 25.0s** | 🔴 **Major Bottleneck** (evidence cross-analysis & synthesis) |
-| **Reflection Agent** | LLM Quality Evaluation | **0.8s – 2.0s** | Fast self-evaluation (triggers retry cycle if evidence sparse) |
-| **Clinical Summary Agent** | LLM Synthesis & Citations | **12.0s – 40.0s** | 🔴 **Major Bottleneck** (comprehensive summary + citation formatting) |
 
 > **Key Takeaway:** The system latency bottleneck is clearly **LLM reasoning and summarization (`clinical_reasoning` and `clinical_summary`)** rather than retrieval. Local ChromaDB guideline retrieval (~0.2s) and PubMed API fetching (~2–4s) constitute only a small fraction of the total execution time, while multi-agent LLM reasoning and structured citation generation account for over 80–90% of total response duration.
 
@@ -316,10 +303,10 @@ MedEvidence AI incorporates automated quantitative evaluation using **RAGAS** ac
 ### RAGAS Metric Performance Breakdown
 | Metric | Score | Industry Benchmark | Clinical Significance |
 |---|:---:|:---:|---|
-| **Answer Relevancy** | **0.9335** (93.4%) | $\ge 0.80$ | **Exceptional Directness**: Synthesized clinical responses align precisely with user queries with minimal filler. |
-| **Context Recall** | **0.6429** (64.3%) | $\ge 0.80$ | **Retrieval Completeness**: 64.3% of essential clinical facts retrieved via BAAI/bge-small-en-v1.5 from ChromaDB + PubMed. |
-| **Faithfulness** | **0.3976** (39.8%) | $\ge 0.85$ | **Groundedness**: Evaluates claim-level grounding against strict retrieved context chunks. |
-| **Context Precision** | **0.2225** (22.3%) | $\ge 0.70$ | **Rank Precision**: Proportion of top-ranked context chunks directly relevant to ground truth. | 
+| **Context Recall** | **0.8000** (80.0%) | $\ge 0.80$ | **High Retrieval Completeness**: 80% of essential clinical facts needed to answer queries were successfully retrieved from ChromaDB + PubMed. |
+| **Faithfulness** | **0.7648** (76.5%) | $\ge 0.85$ | **Strong Groundedness**: ~76.5% of claims in generated summaries are strictly grounded in retrieved evidence, minimizing hallucination risk. |
+| **Answer Relevancy** | **0.6592** (65.9%) | $\ge 0.80$ | **Conciseness & Alignment**: Measures direct response alignment with clinical queries while preserving necessary evidence disclaimers. |
+| **Context Precision** | **0.4871** (48.7%) | $\ge 0.70$ | **High Rank Precision**: Over 2x improvement in top-ranked vector chunk quality after implementing `MIN_SCORE_THRESHOLD = 0.35` filtering. |
 
 *Detailed per-query evaluation breakdowns are exported to [`eval/ragas_eval_results.csv`](file:///c:/Users/Lenovo/MediAI_Langraph/eval/ragas_eval_results.csv).*
 
@@ -417,6 +404,5 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## 🔮 Future Roadmap
 
-* **Latency Reduction**: Async streaming of agent thoughts and incremental token delivery.
-* **Additional Domains**: Pre-configured knowledge collections for Cardiology, Oncology, and Nephrology.
-* **Cloud Deployment**: Helm charts and Terraform templates for AWS/GCP Kubernetes deployment.
+* Latency Reduction
+* Cloud Deployment

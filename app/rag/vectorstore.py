@@ -20,7 +20,7 @@ from app.rag.embedder import embed_query, embed_texts
 logger = logging.getLogger(__name__)
 
 # Similarity Threshold Filter - to throw away non-matching chunks. 
-MIN_SCORE_THRESHOLD = 0.50
+MIN_SCORE_THRESHOLD = 0.35
 
 
 @lru_cache(maxsize=1)
