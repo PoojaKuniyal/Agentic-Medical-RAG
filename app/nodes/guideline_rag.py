@@ -17,8 +17,8 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_N_RESULTS = 5  # Number of top chunks to retrieve from each collection
-MAX_TOTAL_GUIDELINE_CHUNKS = 10  # Maximum overall top-scoring chunks to retain
+DEFAULT_N_RESULTS = 10  # Number of top chunks to retrieve from each collection
+MAX_TOTAL_GUIDELINE_CHUNKS = 25  # Maximum overall top-scoring chunks to retain
 
 
 def _is_boilerplate_chunk(text: str) -> bool:

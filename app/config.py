@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     chunk_overlap: int = 150
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     hf_token: str = Field(default="", alias="HF_TOKEN")
+    enable_reranking: bool = True
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    reranker_top_k: int = 8
 
 
     # ── PubMed ───────────────────────────────────────────────────────────────

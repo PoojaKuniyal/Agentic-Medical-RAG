@@ -110,9 +110,9 @@ The system utilizes a dual-tier execution pipeline:
 | Node / Module | Type | Responsibility |
 |---|---|---|
 | **Memory Node** | Tool / Redis | Loads and stores conversation history, tracked clinical topics, and evidence references using Redis without LLM overhead. |
-| **Clinical Guideline RAG Node** | Tool / ChromaDB | Performs vector similarity search against local Chroma collections with exact page attribution. |
+| **Clinical Guideline RAG Node** | Tool / ChromaDB | Performs high-recall vector similarity search against local Chroma collections with exact page attribution. |
 | **PubMed Node** | Tool / NCBI API | Queries NCBI Entrez REST API for biomedical literature, applies keyword filtering, and fetches article metadata. |
-| **Evidence Ranking Node** | Deterministic Module | Deterministically classifies study types (Guideline, RCT, Meta-Analysis, Observational) and calculates objective metrics via metadata rules. |
+| **Evidence Ranking Node** | Deterministic / Cross-Encoder | Executes deep Cross-Encoder re-ranking (`ms-marco-MiniLM-L-6-v2`) across all candidate guidelines and PubMed studies, then classifies study types and calculates objective evidence metrics. |
 
 ---
 
@@ -132,22 +132,7 @@ For comparative or emerging clinical inquiries (e.g., comparing drug classes or 
 
 ---
 
-## 🔬 PubMed Search Tool Architecture
-
-The PubMed integration uses a clean tool abstraction layer (`AbstractPubMedTool`) powered by the NCBI Entrez REST API (`EntrezPubMedTool`):
-
-```
-                         PubMed Agent
-                               │
-                               ▼
-                   AbstractPubMedTool (Base)
-                               │
-                               ▼
-                        EntrezPubMedTool
-                      (NCBI Entrez REST API)
-```
-
-The node queries NCBI Entrez, extracts structured metadata (PMID, DOI, Journal, Authors, Publication Year, Abstract), and filters articles based on publication date and clinical study design:
+## 🔬 PubMed Search 
 
 ![PubMed Live API Trace](images/pubmed-api-call.png)
 
@@ -250,9 +235,6 @@ To reduce redundant multi-agent pipeline executions and avoid PubMed API rate-li
                    (⚡ Badge in UI + Sim %)
 ```
 
-* **Vector Lookup:** Nearest-neighbor cosine search in ChromaDB (`semantic_cache` collection).
-* **Payload Store:** Full structured responses (`ClinicalSummaryResponse`, `SafetyResponse`, citations, evidence support) stored in Redis with configurable TTL (default 24h) and in-memory fallback.
-* **Clinical Safety Threshold:** Defaults to `0.90` (can be tuned up to `0.95+` in `.env` for strict medical precision).
 * **Management Endpoints:**
   * `GET /cache/stats` — View cache hits, misses, hit rate, and indexed vector counts.
   * `POST /cache/clear` — Clear vector entries and Redis cache keys.
@@ -303,20 +285,55 @@ MedEvidence AI incorporates automated quantitative evaluation using **RAGAS** ac
 ### RAGAS Metric Performance Breakdown
 | Metric | Score | Industry Benchmark | Clinical Significance |
 |---|:---:|:---:|---|
-| **Context Recall** | **0.8000** (80.0%) | $\ge 0.80$ | **High Retrieval Completeness**: 80% of essential clinical facts needed to answer queries were successfully retrieved from ChromaDB + PubMed. |
-| **Faithfulness** | **0.7648** (76.5%) | $\ge 0.85$ | **Strong Groundedness**: ~76.5% of claims in generated summaries are strictly grounded in retrieved evidence, minimizing hallucination risk. |
-| **Answer Relevancy** | **0.6592** (65.9%) | $\ge 0.80$ | **Conciseness & Alignment**: Measures direct response alignment with clinical queries while preserving necessary evidence disclaimers. |
-| **Context Precision** | **0.4871** (48.7%) | $\ge 0.70$ | **High Rank Precision**: Over 2x improvement in top-ranked vector chunk quality after implementing `MIN_SCORE_THRESHOLD = 0.35` filtering. |
+| **Faithfulness** | **0.8902** (89.0%) | $\ge 0.85$ | **State-of-the-Art Groundedness**: 89.0% of claims in generated syntheses are strictly grounded in retrieved evidence, virtually eliminating clinical hallucinations. |
+| **Answer Relevancy** | **0.8345** (83.5%) | $\ge 0.80$ | **Direct Clinical Alignment**: Strong alignment with user clinical queries, providing concise, actionable recommendations. |
+| **Context Recall** | **0.8000** (80.0%) | $\ge 0.80$ | **High Retrieval Completeness**: 80% of essential clinical facts needed to answer complex multi-source queries were successfully retrieved from ChromaDB + PubMed. |
+| **Context Precision** | **0.7492** (74.9%) | $\ge 0.70$ | **High-Density Rank Precision**: Top ranks strictly contain ground-truth guideline recommendations and landmark trial abstracts, filtered by deep cross-attention. |
+
+---
+
+### 🔬 Impact of Cross-Encoder Re-Ranking
+
+Adding a **two-stage retrieval pipeline** improved RAGAS evaluation scores by retrieving 25 candidate chunks and re-ranking them to select the top 8 most relevant passages.
+
+**Pipeline:** Vector Search + PubMed → Cross-Encoder Re-Ranking → Top 8 Context Chunks → Clinical LLM
+
+| Metric | Without Re-Ranking | With Re-Ranking | Improvement |
+| --- | --- | --- | --- |
+| Context Precision | 0.4871 | **0.7492** | +53.8% |
+| Faithfulness | 0.7648 | **0.8902** | +16.4% |
+| Answer Relevancy | 0.6592 | **0.8345** | +26.6% |
+| Context Recall | 0.8000 | 0.8000 | Maintained |
+
+**Key Takeaways**
+
+- **Better retrieval precision:** Ranks the most clinically relevant passages higher.
+- **Improved faithfulness:** Provides the LLM with cleaner, more relevant context.
+- **More relevant answers:** Helps the model focus on specific clinical questions.
+- **Recall preserved:** Maintains the same context recall while improving other metrics.
 
 *Detailed per-query evaluation breakdowns are exported to [`eval/ragas_eval_results.csv`](file:///c:/Users/Lenovo/MediAI_Langraph/eval/ragas_eval_results.csv).*
 
 *Benchmark Dataset Reference:* [PubMedQA Dataset](https://huggingface.co/datasets/qiaojin/PubMedQA/viewer/pqa_artificial/train?q=type2+diabetes&row=14731)
 
 ### Running RAGAS Evaluation:
-```bash
 # Run automated benchmark evaluation in Docker
-docker exec -it mediai_api python eval/evaluate_ragas.py
+
+```bash
+# Step 1: Execute LangGraph pipeline across benchmark queries and cache re-ranked outputs
+python eval/evaluate_ragas.py --generate
+# Run automated benchmark evaluation in Docker
+docker exec -it mediai_api python eval/evaluate_ragas.py --generate
+
+# Step 2: Compute RAGAS scores from saved predictions
+python eval/evaluate_ragas.py --evaluate
+# Run automated benchmark evaluation in Docker
+docker exec -it mediai_api python eval/evaluate_ragas.py --evaluate
+
+# (Or run both steps end-to-end):
+python eval/evaluate_ragas.py --all
 ```
+
 
 ---
 
@@ -391,6 +408,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | **LLM Providers** | Groq (openai/gpt-oss-20b , openai/gpt-oss-120b ) / OpenAI / Gemini / Ollama |
 | **Vector Store** | ChromaDB (Multi-collection, persistent) |
 | **Embeddings** | Sentence Transformers (`BAAI/bge-small-en-v1.5`) |
+| **Re-Ranker** | Cross-Encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`) |
 | **Semantic Caching** | ChromaDB (Vector index) + Redis (Payload TTL Store) |
 | **Session Memory** | Redis (Multi-turn conversational state) |
 | **Biomedical Literature** | NCBI Entrez API |

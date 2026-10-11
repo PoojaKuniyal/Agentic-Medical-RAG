@@ -70,9 +70,13 @@ def generate_predictions():
         
         final_state = langgraph_app.invoke(initial_state)
         
-        guideline_chunks = [g.text for g in final_state.get("guideline_evidence", [])]
-        pubmed_abstracts = [p.abstract for p in final_state.get("pubmed_evidence", []) if p.abstract]
-        combined_contexts = guideline_chunks + pubmed_abstracts
+        ranked_items = final_state.get("ranked_evidence", [])
+        if ranked_items:
+            combined_contexts = [item.text for item in ranked_items]
+        else:
+            guideline_chunks = [g.text for g in final_state.get("guideline_evidence", [])]
+            pubmed_abstracts = [p.abstract for p in final_state.get("pubmed_evidence", []) if p.abstract]
+            combined_contexts = guideline_chunks + pubmed_abstracts
         
         final_response_obj = final_state.get("final_response")
         if final_response_obj and hasattr(final_response_obj, "summary"):

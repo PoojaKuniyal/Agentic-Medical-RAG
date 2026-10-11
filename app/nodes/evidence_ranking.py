@@ -61,34 +61,40 @@ def _classify_pubmed_article(publication_types: list[str]) -> str:
     return TYPE_OTHER_UNCLASSIFIED
 
 
+from app.config import get_settings
+from app.rag.reranker import rerank_candidates
+
+
 def run_evidence_ranking(state: ClinicalState) -> dict:
     """
     LangGraph node function for Evidence Classification & Organization.
+    Applies Cross-Encoder re-ranking across both Guidelines and PubMed articles
+    when enabled, falling back to deterministic metadata-based ordering if disabled.
     """
+    query = state.get("query", "")
     guideline_evidence = state.get("guideline_evidence", [])
     pubmed_evidence = state.get("pubmed_evidence", [])
+    settings = get_settings()
 
-    items: list[RankedEvidence] = []
+    candidate_items: list[dict] = []
     type_counts: dict[str, int] = {}
     years: list[int] = []
 
-    # Process Guideline Chunks (preserve vector search score order)
-    # Already sorted, but re-sort even if guideline_evidence came from a state checkpointer, fallback logic, or was modified out-of-order,
-    # evidence_ranking_agent would strictly process chunks in similarity score order.   
+    # 1. Process Guideline Chunks
     sorted_guidelines = sorted(guideline_evidence, key=lambda c: c.score, reverse=True)
     for chunk in sorted_guidelines:
         evidence_type = _classify_guideline_chunk(chunk)
         type_counts[evidence_type] = type_counts.get(evidence_type, 0) + 1
-        items.append(
-            RankedEvidence(             # transforms retrieval-specific GuidelineChunk into a more general evidence representation
-                rank=len(items) + 1,
-                evidence_type=evidence_type,
-                source_type="guideline",
-                title=chunk.source_pdf,
-                text=chunk.text,
-                source_ref=chunk.source_pdf,
-                collection=chunk.collection,
-            )
+        candidate_items.append(
+            {
+                "evidence_type": evidence_type,
+                "source_type": "guideline",
+                "title": chunk.source_pdf,
+                "text": chunk.text,
+                "source_ref": chunk.source_pdf,
+                "collection": chunk.collection,
+                "score": chunk.score,
+            }
         )
 
     # 2. Process PubMed Articles
@@ -98,21 +104,54 @@ def run_evidence_ranking(state: ClinicalState) -> dict:
         if article.year:
             years.append(article.year)
 
-        items.append(
-            RankedEvidence(
-                rank=len(items) + 1,
-                evidence_type=evidence_type,
-                source_type="pubmed",
-                title=article.title,
-                text=article.abstract,
-                source_ref=article.pmid,
-                collection=None,
-            )
+        candidate_items.append(
+            {
+                "evidence_type": evidence_type,
+                "source_type": "pubmed",
+                "title": article.title,
+                "text": f"{article.title}. {article.abstract}" if article.title else article.abstract,
+                "source_ref": article.pmid,
+                "collection": None,
+                "score": 0.0,
+            }
         )
 
-    # Re-assign sequential rank 1..N
-    for index, item in enumerate(items, 1):
-        item.rank = index
+    # 3. Re-ranking: Cross-Encoder (if enabled)
+    reranked_applied = False
+    if settings.enable_reranking and candidate_items and query.strip():
+        try:
+            candidate_items = rerank_candidates(
+                query=query,
+                candidates=candidate_items,
+                text_key="text",
+                top_k=settings.reranker_top_k,
+            )
+            reranked_applied = True
+            logger.info(
+                "[EvidenceRanking] Applied Cross-Encoder reranking (%s) on %d candidates",
+                settings.reranker_model,
+                len(candidate_items),
+            )
+        except Exception as exc:
+            logger.warning(
+                "[EvidenceRanking] Cross-Encoder reranking failed (%s). Using standard ordering.",
+                exc,
+            )
+
+    # Build final RankedEvidence models with sequential ranks 1..N
+    items: list[RankedEvidence] = []
+    for index, item in enumerate(candidate_items, 1):
+        items.append(
+            RankedEvidence(
+                rank=index,
+                evidence_type=item["evidence_type"],
+                source_type=item["source_type"],
+                title=item["title"],
+                text=item["text"],
+                source_ref=item["source_ref"],
+                collection=item.get("collection"),
+            )
+        )
 
     # Build year range string
     year_range_str: Optional[str] = None
@@ -121,9 +160,11 @@ def run_evidence_ranking(state: ClinicalState) -> dict:
         year_range_str = f"{min_y}" if min_y == max_y else f"{min_y}–{max_y}"
 
     # Build objective relevance summary
+    rerank_mode_str = f"Re-ranked via {settings.reranker_model}" if reranked_applied else "Deterministic similarity order"
     relevance_summary = (
         f"{len(guideline_evidence)} guideline passage(s) retrieved via vector search; "
-        f"{len(pubmed_evidence)} PubMed study record(s) retrieved."
+        f"{len(pubmed_evidence)} PubMed study record(s) retrieved. "
+        f"Final ranking ({rerank_mode_str}): {len(items)} evidence item(s) selected."
     )
 
     support_metrics = EvidenceSupport(
@@ -136,10 +177,11 @@ def run_evidence_ranking(state: ClinicalState) -> dict:
     )
 
     logger.info(
-        "[EvidenceClassification] Processed %d total evidence items deterministically (%d guidelines, %d pubmed)",
+        "[EvidenceClassification] Finalized %d ranked evidence items (%d guidelines, %d pubmed, reranked=%s)",
         len(items),
         len(guideline_evidence),
         len(pubmed_evidence),
+        reranked_applied,
     )
 
     return {
@@ -147,9 +189,8 @@ def run_evidence_ranking(state: ClinicalState) -> dict:
         "evidence_support": support_metrics,
     }
 
-# Guidelines are placed at the top of the list (sorted). 
-# PubMed are appended after the guidelines, preserving their retrieval sequence. 
-# Sequential Ranks Re-assigned : After all items are collected, their ranks are reset to 1..N. 
-# It Doesnot skip any evidence. Every retrieved guideline chunk and PubMed article is included in ranked_evidence.  
-# Although Guidelines are given higher rank it does NOT skip good answers from PubMed in the clinicial reasoning stage. 
-# The LLM reads all items, so any good answer or evidence found in a PubMed article is fully available to the LLM during the clinical reasoning stage.
+
+# 1. Candidate Generation: Gathers candidate chunks from Chroma and candidate articles from PubMed.
+# 2. Cross-Encoder Re-Ranking: When enabled, passes (query, candidate_text) pairs to the Cross-Encoder model.
+# 3. Unified Relevance: Cross-evaluates Guidelines and PubMed studies on the same semantic scale, putting the most clinically relevant evidence at Rank #1.
+# 4. Fallback: Gracefully falls back to deterministic ordering if reranking is disabled or unavailable.

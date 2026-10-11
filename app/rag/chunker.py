@@ -11,11 +11,15 @@ import logging
 
 try:
     from langchain_text_splitters import RecursiveCharacterTextSplitter
-except ImportError as err:
-    raise ImportError(
-        "langchain-text-splitters package is required for document chunking. "
-        "Please install it using 'pip install langchain-text-splitters'."
-    ) from err
+except ImportError:
+    try:
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
+    except ImportError as err:
+        raise ImportError(
+            "langchain-text-splitters or langchain package is required for document chunking. "
+            "Please install it using 'pip install langchain-text-splitters'."
+        ) from err
+
 
 from app.config import get_settings
 
