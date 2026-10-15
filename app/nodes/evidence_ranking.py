@@ -50,10 +50,10 @@ def _classify_guideline_chunk(chunk: GuidelineChunk) -> str:
     return TYPE_OTHER_UNCLASSIFIED
 
 
-def _classify_pubmed_article(publication_types: list[str]) -> str:
+def _classify_pubmed_article(article: PubMedArticle) -> str:
     """Classify PubMed article type strictly based on official publication_types metadata."""
     
-    for pub_type in publication_types:
+    for pub_type in article.publication_types:
         pub_lower = pub_type.lower()
         for keyword, mapped_type in PUBMED_TYPE_MAP:
             if keyword in pub_lower:
@@ -99,7 +99,7 @@ def run_evidence_ranking(state: ClinicalState) -> dict:
 
     # 2. Process PubMed Articles
     for article in pubmed_evidence:
-        evidence_type = _classify_pubmed_article(article.publication_types)
+        evidence_type = _classify_pubmed_article(article)
         type_counts[evidence_type] = type_counts.get(evidence_type, 0) + 1
         if article.year:
             years.append(article.year)

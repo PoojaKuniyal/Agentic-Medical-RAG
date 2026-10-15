@@ -38,7 +38,7 @@ from app.rag.vectorstore import (
 logger = logging.getLogger(__name__)
 
 
-async def run_ingestion(force: bool = False) -> dict:
+def run_ingestion(force: bool = False) -> dict:
     """
     Run the incremental (or forced) ingestion pipeline.
     force : If True, delete all Chroma collections and rebuild from scratch.
@@ -112,7 +112,7 @@ async def run_ingestion(force: bool = False) -> dict:
     }
 
 
-async def ingest_uploaded_pdf(
+def ingest_uploaded_pdf(
     file_bytes: bytes,
     filename: str,
     target_collection: str = "clinical_guidelines",
@@ -171,13 +171,12 @@ async def ingest_uploaded_pdf(
 
 
 if __name__ == "__main__":
-    import asyncio
     import sys
 
     logging.basicConfig(level=logging.INFO)
     is_force = "--force" in sys.argv
     logger.info("Starting ingestion script (force=%s)...", is_force)
-    result = asyncio.run(run_ingestion(force=is_force))
+    result = run_ingestion(force=is_force)
     print(f"\n--- INGESTION COMPLETE ---")
     print(f"Indexed Chunks : {result.get('indexed', 0)}")
     print(f"Skipped PDFs   : {result.get('skipped', 0)}")

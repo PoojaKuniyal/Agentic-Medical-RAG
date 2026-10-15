@@ -4,6 +4,7 @@ FastAPI application entrypoint.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -100,7 +101,7 @@ async def lifespan(app: FastAPI):
     # Incremental ingestion on startup (never force-rebuild here)
     try:
         from app.rag.ingest import run_ingestion
-        result = await run_ingestion(force=False)
+        result = await asyncio.to_thread(run_ingestion, force=False)
         logger.info(
             "Startup ingestion complete — indexed=%d skipped=%d",
             result["indexed"],
@@ -161,7 +162,7 @@ async def root():
 # Routes
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
-async def health_check() -> HealthResponse:
+def health_check() -> HealthResponse:
     """Return service status and downstream connectivity."""
     services: dict[str, str] = {}
 
@@ -206,7 +207,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             from app.memory.semantic_cache import get_semantic_cache
 
             cache = get_semantic_cache()
-            cached_match = cache.lookup(request.query)
+            cached_match = await asyncio.to_thread(cache.lookup, request.query)
 
             if cached_match is not None:
                 # Update session memory so user's multi-turn history stays consistent
@@ -231,7 +232,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
                             else getattr(c, "reference_id", "")
                             for c in citations
                         ]
-                        save_session(
+                        await asyncio.to_thread(
+                            save_session,
                             session_id=request.session_id,
                             query=request.query,
                             summary=summary_text,
@@ -279,14 +281,16 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
                 # caches the safety violation response so future identical or semantically similar unsafe queries can be blocked instantly without re-running the graph.
                 if not final_state.get("is_safe", True): 
-                    cache.store(
+                    await asyncio.to_thread(
+                        cache.store,
                         query=request.query,
                         is_safe=False,
                         safety_response=final_state.get("safety_response"),
                         session_id=request.session_id,
                     )
                 elif final_state.get("final_response"): # caches successful response
-                    cache.store(
+                    await asyncio.to_thread(
+                        cache.store,
                         query=request.query,
                         is_safe=True,
                         response=final_state.get("final_response"),
@@ -318,7 +322,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 
 @app.get("/cache/stats", response_model=CacheStatsResponse, tags=["Cache"])
-async def cache_stats() -> CacheStatsResponse:
+def cache_stats() -> CacheStatsResponse:
     """Return semantic cache statistics including hits, misses, and count."""
     try:
         from app.memory.semantic_cache import get_semantic_cache
@@ -331,7 +335,7 @@ async def cache_stats() -> CacheStatsResponse:
 
 
 @app.post("/cache/clear", tags=["Cache"])
-async def clear_cache() -> dict[str, Any]:
+def clear_cache() -> dict[str, Any]:
     """Clear all entries from the semantic cache."""
     try:
         from app.memory.semantic_cache import get_semantic_cache
@@ -358,7 +362,7 @@ async def ingest(
     try:
         from app.rag.ingest import run_ingestion
 
-        result = await run_ingestion(force=force)
+        result = await asyncio.to_thread(run_ingestion, force=force)
         return IngestResponse(
             status="ok",
             indexed=result["indexed"],
@@ -398,7 +402,8 @@ async def upload_and_ingest(
         if len(file_bytes) == 0:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-        result = await ingest_uploaded_pdf(
+        result = await asyncio.to_thread(
+            ingest_uploaded_pdf,
             file_bytes=file_bytes,
             filename=file.filename,
             target_collection=collection,
@@ -421,7 +426,7 @@ async def upload_and_ingest(
 
 
 @app.get("/collections", response_model=CollectionsResponse, tags=["RAG"])
-async def list_collections() -> CollectionsResponse:
+def list_collections() -> CollectionsResponse:
     """List all Chroma collections and their document counts."""
     try:
         from app.rag.vectorstore import get_chroma_client
