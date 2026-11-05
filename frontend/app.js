@@ -125,14 +125,22 @@ async function triggerReingest() {
 
 function typewriteText(element, fullText, speedMs = 14, onComplete = null) {
   element.classList.add('streaming');
-  const words = fullText.split(' ');
-  let currentWordIdx = 0;
+  const tokens = fullText.match(/(\S+|\n+)/g) || [];
+  let currentTokenIdx = 0;
   element.textContent = '';
 
   const interval = setInterval(() => {
-    if (currentWordIdx < words.length) {
-      element.textContent += (currentWordIdx > 0 ? ' ' : '') + words[currentWordIdx];
-      currentWordIdx++;
+    if (currentTokenIdx < tokens.length) {
+      const token = tokens[currentTokenIdx];
+      if (token.startsWith('\n')) {
+        element.textContent += token;
+      } else {
+        if (element.textContent.length > 0 && !element.textContent.endsWith('\n')) {
+          element.textContent += ' ';
+        }
+        element.textContent += token;
+      }
+      currentTokenIdx++;
       chatFeed.scrollTop = chatFeed.scrollHeight;
     } else {
       clearInterval(interval);
@@ -309,6 +317,9 @@ function stripMarkdownForUI(text) {
   // Strip debug metadata strings like (source: rank 1, PMID: unavailable; PDF reference: ...)
   cleaned = cleaned.replace(/\s*\(\s*(source|rank|PMID|PDF reference|collection):.*?\)/gi, '');
   cleaned = cleaned.replace(/\b(PMID:\s*unavailable|PDF reference:\s*[\w.-]+|source:\s*rank\s*\d+)\b/gi, '');
+  // Ensure every numbered point (e.g. 1., 2., 3.) starts on a new line
+  cleaned = cleaned.replace(/(?<!\n)\s+(\d+\.\s+)/g, (match, p1) => '\n' + p1);
+  cleaned = cleaned.replace(/(?<!\n)\s+([•\-*]\s+)/g, (match, p1) => '\n' + p1);
   return cleaned.trim();
 }
 

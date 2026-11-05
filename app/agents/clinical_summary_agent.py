@@ -221,6 +221,10 @@ def _clean_summary_text(text: str) -> str:
     # 5. Remove "Here's a thinking process:" lines
     cleaned = re.sub(r"(?i)^.*here'?s a thinking process.*$", "", cleaned, flags=re.MULTILINE)
     
+    # 6. Ensure every numbered point (e.g. " 2. ", " 10. ") or bullet point starts on its own new line
+    cleaned = re.sub(r"(?<!\n)\s+(\d+\.\s+)", r"\n\1", cleaned)
+    cleaned = re.sub(r"(?<!\n)\s+([•\-*]\s+)", r"\n\1", cleaned)
+
     # Clean multiple spaces and return
     lines = [re.sub(r"\s+", " ", l).strip() for l in cleaned.split("\n")]
     return "\n".join([l for l in lines if l])
@@ -266,7 +270,10 @@ def _build_response(
         else prog_citations
     )
 
-    summary_text = _clean_summary_text(data.get("summary", ""))
+    raw_summary = data.get("summary", "")
+    if isinstance(raw_summary, list):
+        raw_summary = "\n".join(str(s) for s in raw_summary)
+    summary_text = _clean_summary_text(str(raw_summary))
 
     return ClinicalSummaryResponse(
         summary=summary_text,

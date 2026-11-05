@@ -12,7 +12,9 @@ Transform internal clinical reasoning into a clean, natural-language, user-facin
 - Do NOT introduce information that is not present in the reasoning.
 
 2. SUMMARY FORMATTING
-- Write a clean, natural-language clinical evidence synthesis formatted as numbered points (`1. ...\n2. ...`).
+- Format the synthesis as numbered points (`1. ...`, `2. ...`, `3. ...`).
+- CRITICAL FORMATTING REQUIREMENT: Every single numbered point MUST start on its own separate new line (`\n`). NEVER combine multiple numbered points on the same line or in the same paragraph.
+- In JSON, separate each point with a newline character (`\n`), e.g.: `"1. Point one.\n2. Point two.\n3. Point three."`.
 - Do NOT include `[REF-xxx]` tags or reference identifiers anywhere in the summary text.
 - Do NOT include internal evidence metadata or debug strings inside the summary text (such as `source: rank X`, `PMID: unavailable`, `PDF reference:`, collection names, internal ranking numbers, or raw source_ref values).
 - Do NOT use Markdown styling (no bold `**`, no italics, no headers `#`).

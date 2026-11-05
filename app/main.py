@@ -4,7 +4,6 @@ FastAPI application entrypoint.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -101,7 +100,7 @@ async def lifespan(app: FastAPI):
     # Incremental ingestion on startup (never force-rebuild here)
     try:
         from app.rag.ingest import run_ingestion
-        result = await asyncio.to_thread(run_ingestion, force=False)
+        result = await run_ingestion(force=False)
         logger.info(
             "Startup ingestion complete — indexed=%d skipped=%d",
             result["indexed"],
@@ -207,7 +206,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             from app.memory.semantic_cache import get_semantic_cache
 
             cache = get_semantic_cache()
-            cached_match = await asyncio.to_thread(cache.lookup, request.query)
+            cached_match = cache.lookup(request.query)
 
             if cached_match is not None:
                 # Update session memory so user's multi-turn history stays consistent
@@ -232,8 +231,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
                             else getattr(c, "reference_id", "")
                             for c in citations
                         ]
-                        await asyncio.to_thread(
-                            save_session,
+                        save_session(
                             session_id=request.session_id,
                             query=request.query,
                             summary=summary_text,
@@ -281,16 +279,14 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
                 # caches the safety violation response so future identical or semantically similar unsafe queries can be blocked instantly without re-running the graph.
                 if not final_state.get("is_safe", True): 
-                    await asyncio.to_thread(
-                        cache.store,
+                    cache.store(
                         query=request.query,
                         is_safe=False,
                         safety_response=final_state.get("safety_response"),
                         session_id=request.session_id,
                     )
                 elif final_state.get("final_response"): # caches successful response
-                    await asyncio.to_thread(
-                        cache.store,
+                    cache.store(
                         query=request.query,
                         is_safe=True,
                         response=final_state.get("final_response"),
@@ -402,8 +398,7 @@ async def upload_and_ingest(
         if len(file_bytes) == 0:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-        result = await asyncio.to_thread(
-            ingest_uploaded_pdf,
+        result = await ingest_uploaded_pdf(
             file_bytes=file_bytes,
             filename=file.filename,
             target_collection=collection,

@@ -1,8 +1,8 @@
-# MedEvidence AI
+# MedAI
 
 Production-inspired Multi-Agent Clinical Evidence Synthesis Platform built with **LangGraph**, **Retrieval-Augmented Generation (RAG)**, **Live PubMed Search**, **ChromaDB**, **Redis Memory**, and **LangSmith Observability**.
 
-🎬 **[Watch Demo Video](https://vimeo.com/1232753688?fl=ip&fe=ec)**
+🎬 **[Watch Demo Video](https://vimeo.com/1242741547?fl=ip&fe=ec)**
 
 MedEvidence AI is an intelligent medical AI assistant designed to help clinicians and healthcare professionals quickly synthesize evidence-based clinical insights. While pre-configured for **Type 2 Diabetes** management, the underlying architecture is designed to be extensible to other clinical domains (e.g., Cardiology, Oncology, Neurology) simply by adding guideline PDFs to the knowledge base.
 

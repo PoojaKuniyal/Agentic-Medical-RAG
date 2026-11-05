@@ -25,4 +25,4 @@ Literal, precise, neutral, and clinically objective. Preserve each source's cert
 
 ## Output
 
-Return a structured reasoning string as numbered points.
+Return a structured reasoning string as numbered points, with each point starting on its own separate new line (`1. ...\n2. ...\n3. ...`). Never combine multiple numbered points on the same line.

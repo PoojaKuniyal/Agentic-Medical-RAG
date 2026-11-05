@@ -76,3 +76,12 @@ docker compose -f docker/docker-compose.yml restart api
 When you update your code AND env
 Rebuild & restart:
 docker compose -f docker/docker-compose.yml up -d --build api
+
+
+To generate and evaluate RAGAS metrics
+docker exec -it mediai_api python eval/evaluate_ragas.py --generate    
+
+docker exec -it mediai_api python eval/evaluate_ragas.py --evaluate --start 1 --end 3
+docker exec -it mediai_api python eval/evaluate_ragas.py --evaluate --start 3 --end 6
+docker exec -it mediai_api python eval/evaluate_ragas.py --evaluate --start 6 --end 8
+docker exec -it mediai_api python eval/evaluate_ragas.py --evaluate --start 8 --end 10

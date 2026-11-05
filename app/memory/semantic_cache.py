@@ -266,7 +266,7 @@ class SemanticCache:
                 cache_id,
                 ttl,
             )
-            return cache_id
+            return cache_id 
 
         except Exception as exc:
             logger.warning("[SemanticCache] Failed to store cache entry: %s", exc)

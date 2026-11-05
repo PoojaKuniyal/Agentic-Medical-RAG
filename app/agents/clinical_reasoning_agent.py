@@ -95,6 +95,9 @@ def run_clinical_reasoning(state: ClinicalState) -> dict:
     reasoning = re.sub(r"<think>.*?</think>", "", raw_reasoning, flags=re.DOTALL | re.IGNORECASE).strip()
     # Remove standalone <think> or </think> tags
     reasoning = re.sub(r"</?think>", "", reasoning, flags=re.IGNORECASE).strip()
+    # Ensure numbered points start on separate lines
+    reasoning = re.sub(r"(?<!\n)\s+(\d+\.\s+)", r"\n\1", reasoning)
+    reasoning = re.sub(r"(?<!\n)\s+([•\-*]\s+)", r"\n\1", reasoning)
 
     logger.info(
         "[ClinicalReasoningAgent] Reasoning produced (%d chars)", len(reasoning)
